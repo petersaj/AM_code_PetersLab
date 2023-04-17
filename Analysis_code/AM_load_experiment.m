@@ -86,15 +86,32 @@ mousecam_header = read_mousecam_header(mousecam_header_fn, flipper_pin);
 good_mousecam_frames = find(mousecam_header.flipper>0, 1):length(mousecam_header.flipper);
 
 %%%%%%%%%%%%%% get times ?????? %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-facecamera_times = interp1(double(flipper_trace), ...
-    timestamps, ...
-    double(mousecam_header.flipper(good_mousecam_frames)));
+facecamera_times = interp1(mousecam_header.timestamps-mousecam_header.timestamps(1), ...
+    double(mousecam_header.flipper), ...
+    timestamps);
+
+mousecam_flipper = double(mousecam_header.flipper);
+
+n = 15;
+beta = 300;
+test_resample = resample(mousecam_flipper, daq_info(1).rate, 30, n, beta);
+test_resam
+figure; plot(test_resample)
+
+[test1, test2] = alignsignals(test_resample, double(flipper_trace), Method="risetime");
+
+figure;
+plot(test1)
+hold on
+plot(test2+1)
 
 % plot 
+
 figure;
 plot(mousecam_header.timestamps-mousecam_header.timestamps(1), mousecam_header.flipper);
 hold on;
 plot(timestamps, flipper_trace+1);
+
 
 
 %%%%%%%%%%%%%%%%%%% NOT INCLUDED YET %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

@@ -9,6 +9,7 @@ arguments
     load_parts.wf logical = false
     load_parts.bhv logical = false
     load_parts.ephys logical = false
+    load_parts.mousecam logical = false
 end
 
 %% Load timelite and associated inputs
@@ -76,6 +77,7 @@ if load_parts.bhv == true
     end
 end
 %% Load mousecam
+if load_parts.mousecam == true
 
 mousecam_fn = plab.locations.make_server_filename(animal,rec_day,rec_time,'mousecam','mousecam.mj2');
 mousecam_header_fn = plab.locations.make_server_filename(animal,rec_day,rec_time,'mousecam','mousecam_header.bin');
@@ -121,6 +123,7 @@ end
 mousecam_tl_idx = (1:length(mousecam_header.timestamps)) + mousecam_idx_offset;
 mousecam_times = mousecam_expose_times(mousecam_tl_idx);
 
+end
 %% Load widefield
 
 if load_parts.wf == true

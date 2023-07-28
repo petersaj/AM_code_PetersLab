@@ -448,13 +448,13 @@ caxis([lower_caxis upper_caxis]);
 colorbar;
 title('Unresponsive cells')
 
+
 % mean traces
 subplot(1,3,3)
-plot(smooth_norm_mean_responsive_units)
+plot(smooth_mean_responsive_units)
 hold on;
-plot(smooth_norm_mean_unresponsive_units)
+plot(smooth_mean_unresponsive_units)
 legend({'Responsive', 'Unresponsive'})
-
 
 % % all cells
 % figure;

@@ -229,8 +229,8 @@ xline(0.1)
 %% unit responsivenes 
 
 % create pre and post stim onsets
-pre_stim_time = [0.1 0];
-post_stim_time = [0 0.1];
+pre_stim_time = stimOn_times - [0.1 0];
+post_stim_time = stimOn_times + [0 0.1];
 
 % possible stims
 possible_stim = unique(trial_stim_values);
@@ -289,7 +289,7 @@ mean_all_spikes_in_stim_time = squeeze(mean(all_spikes_in_stim_time, 2));
 
 %% get baseline
 
-% create pre and post stim onsets
+% create pre stim onsets
 bin_window = 0.2;
 baseline_stim_time = stimOn_times - [bin_window 0];
 
@@ -348,74 +348,40 @@ sorted_norm_mean_unresponsive_spikes_in_stim_time = norm_mean_unresponsive_spike
 
 %% get mean trace for resp vs unresp
 
-gauss_window = gausswin(100);
+% define and normalize gaussian window
+gauss_win = gausswin(51, 3)';
 
-% responsive
-% raw
-mean_responsive_units = mean(sorted_mean_responsive_spikes_in_stim_time, 1);
-smooth_mean_responsive_units = filter(gauss_window,1,mean_responsive_units);
-% normalized
-mean_norm_responsive_units = mean(sorted_norm_mean_responsive_spikes_in_stim_time, 1);
-smooth_norm_mean_responsive_units = filter(gauss_window,1,mean_norm_responsive_units);
+% all units norm
+smooth_norm_all_units = filter(gauss_win,sum(gauss_win),norm_mean_all_spikes_in_stim_time, [], 2);
+mean_smooth_norm_all_units = mean(smooth_norm_all_units, 1);
 
-% unresponsive
-% raw
-mean_unresponsive_units = mean(sorted_mean_unresponsive_spikes_in_stim_time, 1);
-smooth_mean_unresponsive_units = filter(gauss_window,1,mean_unresponsive_units);
-% normalized
-mean_norm_unresponsive_units = mean(sorted_norm_mean_unresponsive_spikes_in_stim_time, 1);
-smooth_norm_mean_unresponsive_units = filter(gauss_window,1,mean_norm_unresponsive_units);
+% responsive norm
+smooth_norm_responsive_units = filter(gauss_win,sum(gauss_win),norm_mean_responsive_spikes_in_stim_time, [], 2);
+mean_smooth_norm_responsive_units = mean(smooth_norm_responsive_units, 1);
 
-% % check it worked
+% unresponsive norm
+smooth_norm_unresponsive_units = filter(gauss_win,sum(gauss_win),norm_mean_unresponsive_spikes_in_stim_time, [], 2);
+mean_smooth_norm_unresponsive_units = mean(smooth_norm_unresponsive_units, 1);
+
 % figure;
-% tiledlayout('flow')
+% tiledlayout(2,2)
 % nexttile
-% plot(smooth_mean_responsive_units)
+% imagesc(smooth_norm_responsive_units(sorted_responsive_units_idx, :));
 % title('Responsive')
 % nexttile
-% plot(smooth_mean_unresponsive_units)
+% plot(mean_smooth_norm_responsive_units);
+% title('Responsive')
+% nexttile
+% imagesc(smooth_norm_unresponsive_units(sorted_unresponsive_units_idx, :));
 % title('Unresponsive')
 % nexttile
-% plot(smooth_norm_mean_responsive_units)
-% title('Norm responsive')
-% nexttile
-% plot(smooth_norm_mean_unresponsive_units)
-% title('Norm unresponsive')
+% plot(mean_smooth_norm_unresponsive_units);
+% title('Unresponsive')
 
 
 %% plots
 
 %% - raw data
-figure;
-sgtitle('Raw data') 
-lower_caxis = min(min(sorted_mean_responsive_spikes_in_stim_time, [],"all"), ...
-    min(sorted_mean_unresponsive_spikes_in_stim_time, [],"all"));
-upper_caxis = max(max(sorted_mean_responsive_spikes_in_stim_time, [],"all"), ...
-    max(sorted_mean_unresponsive_spikes_in_stim_time, [],"all"));
-
-% responsive cells
-subplot(1,3,1)
-imagesc(bin_centres, [], sorted_mean_responsive_spikes_in_stim_time);
-% colormap(brewermap([], 'RdBu'));
-caxis([lower_caxis upper_caxis]);
-colorbar;
-title('Responsive cells')
-
-% unresponsive cells
-subplot(1,3,2)
-imagesc(bin_centres, [], sorted_mean_unresponsive_spikes_in_stim_time);
-% colormap(brewermap([], 'RdBu'));
-caxis([lower_caxis upper_caxis]);
-colorbar;
-title('Unresponsive cells')
-
-% mean traces
-subplot(1,3,3)
-plot(smooth_mean_responsive_units)
-hold on;
-plot(smooth_mean_unresponsive_units)
-legend({'Responsive', 'Unresponsive'})
-
 % all cells
 % subplot(1,3,1)
 % imagesc(bin_centres, [], sorted_mean_all_spikes_in_stim_time);                      
@@ -427,33 +393,38 @@ legend({'Responsive', 'Unresponsive'})
 %% - normalized data
 figure;
 sgtitle('Normalized data') 
-lower_caxis = min(min(sorted_norm_mean_responsive_spikes_in_stim_time, [],"all"), ...
-    min(sorted_norm_mean_unresponsive_spikes_in_stim_time, [],"all"));
-upper_caxis = max(max(sorted_norm_mean_responsive_spikes_in_stim_time, [],"all"), ...
-    max(sorted_norm_mean_unresponsive_spikes_in_stim_time, [],"all"));
+upper_caxis = max(max(abs(smooth_norm_responsive_units), [],"all"), ...
+    max(abs(smooth_norm_unresponsive_units), [],"all"));
 
 % responsive cells
-subplot(1,3,1)
-imagesc(bin_centres, [], sorted_norm_mean_responsive_spikes_in_stim_time);
-% colormap(brewermap([], 'RdBu'));
-caxis([lower_caxis upper_caxis]);
+resp = subplot(1,3,1)
+imagesc(bin_centres, [], smooth_norm_responsive_units(sorted_responsive_units_idx, :));
+xline(0, 'LineWidth', 1);
+xline(0.5, 'LineWidth', 1);
+colormap(resp, AP_colormap('BWR', [], 0.7));
+caxis([-upper_caxis upper_caxis]);
 colorbar;
-title('Responsive cells')
+title('Responsive cells');
 
 % unresponsive cells
-subplot(1,3,2)
-imagesc(bin_centres, [], sorted_norm_mean_unresponsive_spikes_in_stim_time);
-% colormap(brewermap([], 'RdBu'));
-caxis([lower_caxis upper_caxis]);
+unresp = subplot(1,3,2);
+imagesc(bin_centres, [], smooth_norm_unresponsive_units(sorted_unresponsive_units_idx, :));
+xline(0, 'LineWidth', 1);
+xline(0.5, 'LineWidth', 1);
+colormap(unresp, AP_colormap('BWR', [], 0.7));
+caxis([-upper_caxis upper_caxis]);
 colorbar;
-title('Unresponsive cells')
+title('Unresponsive cells');
 
 % mean traces
-subplot(1,3,3)
-plot(smooth_norm_mean_responsive_units)
+subplot(1,3,3);
+plot(bin_centres, mean_smooth_norm_responsive_units);
 hold on;
-plot(smooth_norm_mean_unresponsive_units)
-legend({'Responsive', 'Unresponsive'})
+plot(bin_centres, mean_smooth_norm_unresponsive_units);
+hold on;
+xline(0, 'LineWidth', 1);
+xline(0.5, 'LineWidth', 1);
+legend({'Responsive', 'Unresponsive'});
 
 
 % % all cells

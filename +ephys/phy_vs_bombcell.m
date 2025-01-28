@@ -7,21 +7,21 @@ rerun = 1;
 
 animal = 'AP009';
 
-use_workflow = {'lcr_passive'};
+use_workflow = 'lcr_passive';
 % use_workflow = {'lcr_passive_fullscreen'};
 % use_workflow = {'lcr_passive','lcr_passive_fullscreen'};
 % use_workflow = {'stim_wheel_right_stage1','stim_wheel_right_stage2'};
 % use_workflow = 'sparse_noise';
 
-recordings = ap.find_recordings(animal,use_workflow);
+recordings = ap.find_recordings(animal,[], use_workflow);
 
 % use_rec = 1;
-rec_day = '2023-06-28';
+rec_day = '2023-07-14';
 use_rec = strcmp(rec_day,{recordings.day});
 % use_rec = length(recordings)-1;
 
 rec_day = recordings(use_rec).day;
-rec_time = recordings(use_rec).protocol{end};
+rec_time = recordings(use_rec).recording{end};
 
 verbose = true;
 

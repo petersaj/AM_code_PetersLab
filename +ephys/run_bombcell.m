@@ -46,6 +46,14 @@ if ~isempty(ephys_rec)
     if qMetricsExist == 0 || rerun
         [qMetric, unitType] = bc_runAllQualityMetrics(param, spikeTimes_samples, spikeTemplates, ...
             templateWaveforms, templateAmplitudes,pcFeatures,pcFeatureIdx,channelPositions, savePath);
+
+        % load raw waveforms
+        rawWaveforms.average = readNPY([fullfile(savePath, 'templates._bc_rawWaveforms.npy')]);
+        rawWaveforms.peakChan = readNPY([fullfile(savePath, 'templates._bc_rawWaveformPeakChannels.npy')]);
+
+        ephys.extra_bc_q_metrics;
+
+        save(fullfile(savePath, 'am_bc_unit_type.mat'), 'unitType', 'am_bc_units','potential_noise', 'extra_qmetric', '-v7.3')
     else
         [param, qMetric] = bc_loadSavedMetrics(savePath);
 %         unitType = bc_getQualityUnitType(param, qMetric);

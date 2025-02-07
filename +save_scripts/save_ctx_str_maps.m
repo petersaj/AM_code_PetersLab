@@ -35,7 +35,7 @@ for animal_idx=1:length(animals)
 
         AP_longstriatum_find_striatum_depth
         mua_length = 200;
-        depth_group_edges = striatum_start:mua_length:striatum_end;
+        depth_group_edges = striatum_depth(1):mua_length:striatum_depth(end);
         try
             depth_group = discretize(spike_depths,depth_group_edges);
         catch ME
@@ -100,7 +100,7 @@ for animal_idx=1:length(animals)
         % 500 used components x 1 time point x 12 MUA signals)
 
 %         % Convert ctx kernal V into pixels, plot
-%          cortex_kernel_px = squeeze(plab.wf.svd2px(wf_U(:,:,use_svs),cortex_kernel));
+         cortex_kernel_px = squeeze(plab.wf.svd2px(wf_U(:,:,use_svs),cortex_kernel));
 %         ap.imscroll(cortex_kernel_px);
 %         axis image;
 %         clim(max(abs(clim)).*[-1,1]*0.7);
@@ -113,7 +113,7 @@ for animal_idx=1:length(animals)
         ctx_maps_to_str.rec_day(use_rec) = {rec_day};
 
         ctx_maps_to_str.depth_group_edges(use_rec) = {depth_group_edges};
-        ctx_maps_to_str.cortex_kernel(use_rec) = {cortex_kernel}; 
+        ctx_maps_to_str.cortex_kernel_px(use_rec) = {cortex_kernel_px}; 
         ctx_maps_to_str.explained_var(use_rec) = {explained_var.total};
 
         disp(['Done day ' num2str(use_rec)])

@@ -25,7 +25,7 @@ for animal_idx=1:length(animals)
     ephys_days =  bhv_days([train_rec_passive.ephys]);
 
     % take out after
-    days_from_learning = bhv.days_from_learning{animal_idx};
+    days_from_learning = bhv.days_from_learning(strcmp(bhv.animal, animal));
     figure;
     tiledlayout(3,length(ephys_days), 'TileIndexing','columnmajor');
     sgtitle([animal ' resp cells'])
@@ -65,7 +65,7 @@ for animal_idx=1:length(animals)
 
         AP_longstriatum_find_striatum_depth
         mua_length = 200;
-        depth_group_edges = striatum_start:mua_length:striatum_end;
+        depth_group_edges = striatum_depth(1):mua_length:striatum_depth(end);
         try
             depth_group = discretize(spike_depths,depth_group_edges);
         catch ME
@@ -217,7 +217,7 @@ for animal_idx=1:length(animals)
         ephys_animal.animal(use_rec) = {animal};
         ephys_animal.rec_day(use_rec) = {rec_day};
 
-        ephys_animal.trial_stim_values(use_rec) = {trial_stim_values};
+        ephys_animal.trial_stim_values(use_rec) = {trial_stim_values(no_move_trials)};
         ephys_animal.depth_group_edges(use_rec) = {depth_group_edges};
         ephys_animal.unit_depth_group(use_rec) = {unit_depth_group};
 

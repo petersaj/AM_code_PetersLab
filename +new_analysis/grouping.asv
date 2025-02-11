@@ -8,55 +8,16 @@ ephys_data_path = fullfile(save_path, "ephys.mat");
 ctx_str_maps_data_path = fullfile(save_path, 'ctx_maps_to_str.mat');
 
 load(bhv_data_path)
-load(wf_data_path)
+% load(wf_data_path)
 load(ephys_data_path)
 load(ctx_str_maps_data_path)
 
-% load("D:\matlab_save\ctx_maps_to_str.mat")
-
-%% replace [] with nans 
-% for colIdx = 1:width(ephys)
-%     colName = ephys.Properties.VariableNames{colIdx};
-%     if iscell(ephys.(colName))
-%         ephys.(colName)(cellfun(@isempty, ephys.(colName))) = {NaN};
-%     end
-% end
-% 
-% for colIdx = 1:width(all_ctx_maps_to_str)
-%     colName = all_ctx_maps_to_str.Properties.VariableNames{colIdx};
-%     if iscell(all_ctx_maps_to_str.(colName))
-%         all_ctx_maps_to_str.(colName)(cellfun(@isempty, all_ctx_maps_to_str.(colName))) = {NaN};
-%     end
-% end
-
-%% group
-%%%%%% copy of main_ctx_str_maps %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% kmeans ids
 
 % get number of things from total MUA - after re-run save script
 all_cortex_kernel_px = cat(3, all_ctx_maps_to_str.cortex_kernel_px{:});
 all_flattened_cortex_kernel_px = reshape(all_cortex_kernel_px, [], ...
     size(all_cortex_kernel_px, 3))';
-% 
-% use_cortex_kernels = ~any(isnan(all_flattened_cortex_kernel_px), 2);
-% nonan_all_flattened_cortex_kernel_px = all_flattened_cortex_kernel_px(use_cortex_kernels);
-
-% reshape(cortex_kernel_px, [], ...
-%         size(cortex_kernel_px, 3));
-%
-% total_depths = 0;
-% for animal_idx=1:height(all_ctx_maps_to_str)
-%     ctx_maps_to_str = all_ctx_maps_to_str.recording_data{animal_idx};
-%     total_depths = total_depths + sum([ctx_maps_to_str.no_depths{:}]);
-% end
-% % make big cell of all the maps
-% all_flattened_cortex_kernel_px = [];
-% for rec_idx=1:height(all_ctx_maps_to_str)
-%     ctx_maps_to_str = all_ctx_maps_to_str(rec_idx).cortex_kernel;
-%     cortex_kernel_px = cat(3, ctx_maps_to_str.cortex_kernel_px{:});
-%     flattened_cortex_kernel_px = reshape(cortex_kernel_px, [], ...
-%         size(cortex_kernel_px, 3));
-%     all_flattened_cortex_kernel_px = cat(1, all_flattened_cortex_kernel_px, flattened_cortex_kernel_px');
-% end
 
 % run kmeans
 rng('default');
@@ -81,13 +42,8 @@ for idx=1:num_clusters
 end
 
 
-
-%% make big vectors of days from learning and mouse id
-
-% n_depths = arrayfun(@(rec_idx) ...
-%     length(all_ctx_maps_to_str.depth_group_edges{rec_idx})-1, ...
-%     1:height(all_ctx_maps_to_str));
-% n_depths(n_depths<0) = 0;
+%% PSTH
+%% - make big vectors of days from learning and mouse id
 
 n_depths = arrayfun(@(rec_idx) ...
     size(all_ctx_maps_to_str.cortex_kernel_px{rec_idx}, 3) * ~isempty(all_ctx_maps_to_str.cortex_kernel_px{rec_idx}), ...
@@ -96,8 +52,16 @@ n_depths = arrayfun(@(rec_idx) ...
 for_psth_days_from_learning = repelem(bhv.days_from_learning, n_depths);
 [~, ~, for_psth_animal_ids] = unique(repelem(bhv.animal, n_depths));
 
+%% - get num trials
+num_trials = cell(numel(unique_stims), 1);
+for stim_idx = 1:numel(unique_stims)
+    num_trials{stim_idx} = arrayfun(@(rec_idx) ...
+        sum(ephys.trial_stim_values{rec_idx} == unique_stims(stim_idx)), ...
+        1:num_recordings);
+end
+for_psth_num_trials = cellfun(@(x) repelem(x, n_depths), num_trials, 'UniformOutput', false);
 
-%% get psths
+%% - get psths
 num_recordings = height(ephys);
 unique_stims_nan = unique(vertcat(ephys.trial_stim_values{:})); 
 unique_stims = unique_stims_nan(~isnan(unique_stims_nan));
@@ -113,16 +77,9 @@ for stim_idx = 1:numel(unique_stims)
     all_avg_stim_grouped_binned_spikes {stim_idx} = horzcat(avg_stim_grouped_binned_spikes{:});
 end
 
-
-%% group according to animal, cluster and day from learning
-%%%%%%% !!!!!!!! fix NaNs !!!!!!!!!! %%%%%%%%%%%%%%%%%%
-
+%% - group psths according to animal, cluster and day from learning
 % only use nonnan learning days
 use_days = ~isnan(for_psth_days_from_learning);
-
-% replace nan cluster ids with 0
-% nonan_cluster_ids = cluster_ids;
-% nonan_cluster_ids(isnan(cluster_ids)) = 0;
 
 [unique_cluster_ids, ~, ~] = unique(cluster_ids(use_days));
 [unique_days_from_learning, ~, ~] = unique(for_psth_days_from_learning(use_days));
@@ -138,14 +95,34 @@ for stim_idx = 1:numel(unique_stims)
         all_avg_stim_grouped_binned_spikes{stim_idx}(:, use_days), [], group_clusters_indices);
 end
 
-%% new norm smooth
-% for plot
+% group num trials
+grouped_num_trials = cell(numel(unique_stims), 1);
+for stim_idx=1:numel(unique_stims)
+    grouped_num_trials{stim_idx} = accumarray(group_clusters_indices, for_psth_num_trials{stim_idx}(use_days)', ...
+        [length(unique(group_clusters_indices)), 1], @unique);
+end
+
+
+% test = group_indices_unique_clusters(:,[1,3]);
+% size(unique(test, 'rows'))
+% 
+% sum(cellfun(@(x) ~isempty(x), ephys.trial_stim_values) & ~isnan(bhv.days_from_learning))
+
+
+%% - get baseline
 time_vector = -0.5:0.001:1;
 baseline_idx = time_vector >= -0.2 & time_vector <= 0;
 
+per_stim_baseline_avg = cellfun(@(x) mean(x(baseline_idx, :), 1), all_sum_avg_stim_grouped_spikes, 'UniformOutput', false);
+total_num_trials = cell2mat(grouped_num_trials')';
+weighted_sum_stim_baseline = cell2mat(cellfun(@(per_stim_baseline, num_trials) per_stim_baseline .* num_trials', ...
+    per_stim_baseline_avg, grouped_num_trials, 'UniformOutput', false));
+weighted_avg_stim_baseline = sum(weighted_stim_baseline, 1) ./ sum(total_num_trials, 1);
+
+%% - norm smooth psths
 gauss_win = gausswin(51, 3)';
-normalize_and_smooth = @(psth) ...
-    filter(gauss_win, sum(gauss_win), ((psth - mean(psth(baseline_idx), 1)) ./ (mean(psth(baseline_idx), 1))), [], 1);
+normalize_and_smooth = @(psth, rep) ...
+    filter(gauss_win, sum(gauss_win), (psth - weighted_avg_stim_baseline(rep)) ./ (weighted_avg_stim_baseline(rep)), [], 1);
 
 all_smooth_stim_psths = cell(numel(unique_stims), 1);
 for stim_idx=1:numel(unique_stims)
@@ -155,7 +132,8 @@ for stim_idx=1:numel(unique_stims)
         'UniformOutput', false));
 end
 
-%% average across mice
+
+%% - average psths across mice
 
 % mouse idx is first
 avg_animal_group_indices = group_indices_unique_clusters(:,2:3);
@@ -167,19 +145,12 @@ for stim_idx=1:numel(unique_stims)
         all_smooth_stim_psths{stim_idx}, [], animal_group_clusters_indices);
 end
 
-% TO DO do numel for number
-% num_animals_stim_psths = cell(numel(unique_stims), 1);
-% for stim_idx=1:numel(unique_stims)
-%     num_animals_stim_psths{stim_idx} = ap.groupfun(@(x) numel(x), ...
-%         all_smooth_stim_psths{stim_idx}, [], animal_group_clusters_indices);
-% end
-
 num_animals_stim_psths = cell(numel(unique_stims), 1);
 for stim_idx = 1:numel(unique_stims)
     num_animals_stim_psths{stim_idx} = accumarray(animal_group_clusters_indices, 1);
 end
 
-% TO DO do sem for errorbar
+% do sem for errorbar
 std_smooth_stim_psths = cell(numel(unique_stims), 1);
 sem_smooth_stim_psths = cell(numel(unique_stims), 1);
 for stim_idx=1:numel(unique_stims)
@@ -189,7 +160,7 @@ for stim_idx=1:numel(unique_stims)
 end
 
 
-%% plot all days
+%% - psths plot all days
 
 stim_idx = 3;
 
@@ -241,7 +212,7 @@ for cluster_id =1:length(unique_cluster_ids)
 
 end
 
-%% sem plot per day
+%% - psths sem plot per day
 
 stim_idx = 3;
 
@@ -360,7 +331,7 @@ for cluster_id = 1:num_clusters
     these_days_from_learning = unique_avg_animal_group_indices(this_cluster_psth_idx, 2);
 
     plot_day_idx = ismember(these_days_from_learning, days_for_plot);
-    for_plot_max_median = median_max_smooth_stim_psths{stim_idx}(this_cluster_psth_idx);
+    for_plot_max_mean = mean_max_smooth_stim_psths{stim_idx}(this_cluster_psth_idx);
     for_plot_max_sem = sem_max_smooth_stim_psths{stim_idx}(this_cluster_psth_idx);
 
     % get right colours
@@ -376,14 +347,19 @@ for cluster_id = 1:num_clusters
         plotted_days, num_animals_plotted, 'UniformOutput', false);
 
     nexttile;
-    errorbar(plotted_days, for_plot_max_median(:, plot_day_idx), for_plot_max_sem(:, plot_day_idx), '-o', 'CapSize', 0, ...
+    errorbar(plotted_days, for_plot_max_mean(:, plot_day_idx), for_plot_max_sem(:, plot_day_idx), '-o', 'CapSize', 0, ...
         'MarkerFaceColor', curr_color, 'MarkerEdgeColor', curr_color, 'Color', curr_color);
 
     title(['Cluster ' num2str(cluster_id)])
 
 end
 
-%% frac resp
+sgtitle('Max psth amplitude')
+
+% ADD line per mouse in grey 
+
+
+%% FRAC resp
 
 p_thresh = 0.01;
 all_unit_resp_p_value = vertcat(ephys.unit_resp_p_value);
@@ -400,46 +376,27 @@ end
 
 % get unit depth group
 all_unit_depth_group = vertcat(ephys.unit_depth_group);
-% if size(cat_all_resp_units{stim_idx}) == size(all_unit_depth_group)
-%     disp('Sizes match: Resp units and unit depth')
-% else
-%     disp('Resp units diff from unit depth')
-% end
 
-%%%% HERE %%%%%%%%%%%%
 % get unit cluster id based on unit depth group
-
 depth_group_edges = vertcat(ephys.depth_group_edges);
 depth_indexes = cellfun(@(x) 1:numel(x)-1, depth_group_edges, ...
     'UniformOutput', false,'ErrorHandler', @(x, varargin) []);
-
-
 all_depth_indexes = horzcat(depth_indexes{:});
 
-
+% get per rec cluster ids 
 per_rec_cluster_ids = mat2cell(cluster_ids, n_depths);
 
+% get units cluster ids
+unit_cluster_ids = cell(length(per_rec_cluster_ids), 1);
+for rec_idx=1:length(unit_cluster_ids)
+    unit_depth = all_unit_depth_group{rec_idx};
+    cluster = per_rec_cluster_ids{rec_idx};
 
-unit_cluster_ids = cellfun(@(cluster, unit_depth) cluster(unit_depth(~isnan(unit_depth))), ...
-    per_rec_cluster_ids, all_unit_depth_group, 'uni', false);
-
-
-nan_idx = @(x,y) nan*~isnan(y)*x(y); 
-
-
-
-%%%%%
-
-%%% now some cells are missing - get idx for good cells per recording and
-%%% use those
-
-%%% probably better: put nans in unit_cluster_ids instead by doing a for
-%%% loop
-
-
-
-
-
+    this_unit_cluster_ids = zeros(size(unit_depth));
+    this_unit_cluster_ids(~isnan(unit_depth)) = cluster(unit_depth(~isnan(unit_depth)));
+    unit_cluster_ids{rec_idx} = this_unit_cluster_ids;
+end
+all_unit_cluster_ids = vertcat(unit_cluster_ids{:});
 
 % make days from learning and animal grouping idx
 n_units = arrayfun(@(rec_idx) ...
@@ -448,30 +405,339 @@ n_units = arrayfun(@(rec_idx) ...
 for_units_days_from_learning = repelem(bhv.days_from_learning, n_units);
 [~, ~, for_units_animal_ids] = unique(repelem(bhv.animal, n_units));
 
+%% - group!!! 
 
+unit_group_indices = [for_units_animal_ids, all_unit_cluster_ids, for_units_days_from_learning];
+[unit_group_indices_unique_clusters, ~, unit_group_clusters_indices] = unique(unit_group_indices, 'rows');
 
+% get frac resp units
+num_resp_units = cell(numel(unique_stims), 1);
+num_all_units = cell(numel(unique_stims), 1);
+for stim_idx=1:length(unique_stims)
+    num_resp_units{stim_idx} = ap.groupfun(@sum, ...
+        cat_all_resp_units{stim_idx},  unit_group_clusters_indices, []);
+    num_all_units{stim_idx} = ap.groupfun(@size, ...
+        cat_all_resp_units{stim_idx},  unit_group_clusters_indices, []);
+end
+frac_resp_units = arrayfun(@(stim_idx) num_resp_units{stim_idx}./num_all_units{stim_idx}, ...
+    1:length(unique_stims), 'UniformOutput', false);
 
-frac_resp_units = cell(numel(unique_stims), 1);
+%% - group per mouse and get avg
+unit_avg_animal_unit_group_indices = unit_group_indices_unique_clusters(:,2:3);
+[unit_unique_avg_animal_group_indices, ~, unit_animal_group_clusters_indices] = unique(unit_avg_animal_unit_group_indices, 'rows');
 
-frac_resp_units{stim_idx} = arrayfun(@(rep) sum(all_resp_units{stim_idx}{rep}) / numel(all_resp_units{stim_idx}{rep}), ...
-        1:length(all_unit_resp_p_value), 'uni', false, 'ErrorHandler', @(x, varargin) nan);
-    all_frac_resp_units{stim_idx} = vertcat(frac_resp_units{stim_idx}{:});
+num_animals_stim_unit = cell(numel(unique_stims), 1);
+for stim_idx = 1:numel(unique_stims)
+    num_animals_stim_unit{stim_idx} = accumarray(unit_animal_group_clusters_indices, 1);
+end
 
-all_frac_resp_units = cell(numel(unique_stims), 1);
-
-% group per mouse and get avg
 avg_frac_resp_units = cell(numel(unique_stims), 1);
 std_frac_resp_units = cell(numel(unique_stims), 1);
 sem_frac_resp_units = cell(numel(unique_stims), 1);
 for stim_idx=1:length(unique_stims)
-    avg_frac_resp_units = ap.groupfun(@mean, ...
-        frac_resp_units{stim_idx}, [], animal_group_clusters_indices);
+    avg_frac_resp_units{stim_idx} = ap.groupfun(@mean, ...
+        frac_resp_units{stim_idx}, unit_animal_group_clusters_indices, []);
     std_frac_resp_units{stim_idx} = ap.groupfun(@std, ...
-        frac_resp_units{stim_idx}, [], animal_group_clusters_indices);
-    sem_frac_resp_units{stim_idx} = std_frac_resp_units{stim_idx} ./ sqrt(num_animals_stim_psths{stim_idx})';
+        frac_resp_units{stim_idx}, unit_animal_group_clusters_indices, []);
+    sem_frac_resp_units{stim_idx} = std_frac_resp_units{stim_idx} ./ sqrt(num_animals_stim_unit{stim_idx});
 end
 
-%%%%%%%% END HERE %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% - plot frac resp
+
+stim_idx = 3;
+
+days_for_plot = -3:2;
+curr_color = 'k';
+% max_colormap = ap.colormap('BKR', 2*max(abs(days_for_plot))+1);
+% colormap_days = -max(abs(days_for_plot)):max(abs(days_for_plot));
+
+figure;
+tiledlayout(num_clusters,2);
+for cluster_id = 1:num_clusters
+
+    nexttile;
+    imagesc(squeeze(centroid_images(cluster_id,:,:)))
+    axis image;
+    clim(max(abs(clim)).*[-1,1]*0.7);
+    ap.wf_draw('ccf','k');
+    colormap(ap.colormap('PWG'));
+    ylabel(['Cluster ', num2str(cluster_id)], 'FontSize', 14, 'FontWeight','bold');
+
+
+    this_cluster_unit_idx = unit_unique_avg_animal_group_indices(:,1) == cluster_id;
+    these_days_from_learning = unit_unique_avg_animal_group_indices(this_cluster_unit_idx, 2);
+
+    plot_day_idx = ismember(these_days_from_learning, days_for_plot);
+    for_plot_avg_frac = avg_frac_resp_units{stim_idx}(this_cluster_unit_idx);
+    for_plot_sem_frac = sem_frac_resp_units{stim_idx}(this_cluster_unit_idx);
+
+    % get right colours
+    plotted_days = these_days_from_learning(plot_day_idx);
+%     my_colormap = all_colormap(ismember(colormap_days, plotted_days), :);
+
+    % get num animals for legen
+    num_animals_all = num_animals_stim_unit{stim_idx}(this_cluster_unit_idx);
+    num_animals_plotted = num_animals_all(plot_day_idx);
+
+    % make legend
+    legend_for_plot = arrayfun(@(day, num) ['Day ' num2str(day) ' (n = ' num2str(num) ')'], ...
+        plotted_days, num_animals_plotted, 'UniformOutput', false);
+
+    nexttile;
+    errorbar(plotted_days, for_plot_avg_frac(plot_day_idx), for_plot_sem_frac(plot_day_idx), '-o', 'CapSize', 0, ...
+        'MarkerFaceColor', curr_color, 'MarkerEdgeColor', curr_color, 'Color', curr_color);
+
+    ylim([0,0.4])
+    title(['Cluster ' num2str(cluster_id)])
+
+end
+
+sgtitle('Frac resp units', 'FontSize', 20);
+
+%% STD and MEAN avg
+
+all_unit_mean_post_stim = vertcat(ephys.mean_post_stim);
+all_unit_mean_pre_stim = vertcat(ephys.mean_pre_stim);
+all_unit_std_post_stim = vertcat(ephys.std_post_stim);
+
+unit_mean_post_stim = cell(length(unique_stims), 1);
+unit_mean_pre_stim = cell(length(unique_stims), 1);
+unit_std_post_stim = cell(length(unique_stims), 1);
+cat_unit_mean_post_stim = cell(length(unique_stims), 1);
+cat_unit_mean_pre_stim = cell(length(unique_stims), 1);
+cat_unit_norm_post_stim = cell(length(unique_stims), 1);
+cat_unit_std_post_stim = cell(length(unique_stims), 1);
+for stim_idx=1:length(unique_stims)
+    unit_mean_post_stim{stim_idx} = cellfun(@(x) x{stim_idx}, all_unit_mean_post_stim, 'UniformOutput', false, 'ErrorHandler', @(x, varargin) []);
+    unit_mean_pre_stim{stim_idx} = cellfun(@(x) x{stim_idx}, all_unit_mean_pre_stim, 'UniformOutput', false, 'ErrorHandler', @(x, varargin) []);
+    cat_unit_mean_post_stim{stim_idx} = vertcat(unit_mean_post_stim{stim_idx}{:});
+    cat_unit_mean_pre_stim{stim_idx} = vertcat(unit_mean_pre_stim{stim_idx}{:});
+    cat_unit_norm_post_stim{stim_idx} = (cat_unit_mean_post_stim{stim_idx} - cat_unit_mean_pre_stim{stim_idx}) ...
+        ./ (cat_unit_mean_pre_stim{stim_idx} + 0.1);
+   
+    unit_std_post_stim{stim_idx} = cellfun(@(x) x{stim_idx}, all_unit_std_post_stim, 'UniformOutput', false, 'ErrorHandler', @(x, varargin) []);
+    cat_unit_std_post_stim{stim_idx} = vertcat(unit_std_post_stim{stim_idx}{:});
+end
+
+%%% AP DEMO
+cat_unit_mean_baseline = mean(cell2mat(vertcat(ephys.mean_pre_stim{:})),2);
+cat_unit_mean_post_stim = mat2cell(cell2mat(vertcat(ephys.mean_post_stim{:})),sum(n_units),ones(1,3));
+
+softnorm = 0.1;
+cat_unit_norm_post_stim = cellfun(@(x) (x-cat_unit_mean_baseline)./ ...
+    (cat_unit_mean_baseline+softnorm),cat_unit_mean_post_stim,'uni',false);
+
+
+%% group avg mean
+group_unit_mean_post_stim = cell(numel(unique_stims), 1);
+for stim_idx=1:length(unique_stims)
+    group_unit_mean_post_stim{stim_idx} = ap.groupfun(@mean, ...
+        cat_unit_mean_post_stim{stim_idx},  unit_group_clusters_indices, []);
+end
+
+% avg across animals
+avg_unit_mean_post_stim = cell(numel(unique_stims), 1);
+std_unit_mean_post_stim = cell(numel(unique_stims), 1);
+sem_unit_mean_post_stim = cell(numel(unique_stims), 1);
+for stim_idx=1:length(unique_stims)
+    avg_unit_mean_post_stim{stim_idx} = ap.groupfun(@mean, ...
+        group_unit_mean_post_stim{stim_idx}, unit_animal_group_clusters_indices, []);
+    std_unit_mean_post_stim{stim_idx} = ap.groupfun(@std, ...
+        group_unit_mean_post_stim{stim_idx}, unit_animal_group_clusters_indices, []);
+    sem_unit_mean_post_stim{stim_idx} = std_unit_mean_post_stim{stim_idx} ./ sqrt(num_animals_stim_unit{stim_idx});
+end
+
+%% group avg norm mean
+group_unit_norm_mean_post_stim = cell(numel(unique_stims), 1);
+for stim_idx=1:length(unique_stims)
+    group_unit_norm_mean_post_stim{stim_idx} = ap.groupfun(@mean, ...
+        cat_unit_norm_post_stim{stim_idx},  unit_group_clusters_indices, []);
+end
+
+% avg across animals
+avg_unit_norm_mean_post_stim = cell(numel(unique_stims), 1);
+std_unit_norm_mean_post_stim = cell(numel(unique_stims), 1);
+sem_unit_norm_mean_post_stim = cell(numel(unique_stims), 1);
+for stim_idx=1:length(unique_stims)
+    avg_unit_norm_mean_post_stim{stim_idx} = ap.groupfun(@mean, ...
+        group_unit_norm_mean_post_stim{stim_idx}, unit_animal_group_clusters_indices, []);
+    std_unit_norm_mean_post_stim{stim_idx} = ap.groupfun(@std, ...
+        group_unit_norm_mean_post_stim{stim_idx}, unit_animal_group_clusters_indices, []);
+    sem_unit_norm_mean_post_stim{stim_idx} = std_unit_norm_mean_post_stim{stim_idx} ./ sqrt(num_animals_stim_unit{stim_idx});
+end
+
+%% group avg std
+group_unit_std_post_stim = cell(numel(unique_stims), 1);
+for stim_idx=1:length(unique_stims)
+    group_unit_std_post_stim{stim_idx} = ap.groupfun(@mean, ...
+        cat_unit_std_post_stim{stim_idx},  unit_group_clusters_indices, []);
+end
+
+% avg across animals
+avg_unit_std_post_stim = cell(numel(unique_stims), 1);
+std_unit_std_post_stim = cell(numel(unique_stims), 1);
+sem_unit_std_post_stim = cell(numel(unique_stims), 1);
+for stim_idx=1:length(unique_stims)
+    avg_unit_std_post_stim{stim_idx} = ap.groupfun(@mean, ...
+        group_unit_std_post_stim{stim_idx}, unit_animal_group_clusters_indices, []);
+    std_unit_std_post_stim{stim_idx} = ap.groupfun(@std, ...
+        group_unit_std_post_stim{stim_idx}, unit_animal_group_clusters_indices, []);
+    sem_unit_std_post_stim{stim_idx} = std_unit_std_post_stim{stim_idx} ./ sqrt(num_animals_stim_unit{stim_idx});
+end
+
+%% plot post stim std 
+
+stim_idx = 3;
+
+days_for_plot = -3:2;
+curr_color = 'k';
+% max_colormap = ap.colormap('BKR', 2*max(abs(days_for_plot))+1);
+% colormap_days = -max(abs(days_for_plot)):max(abs(days_for_plot));
+
+figure;
+tiledlayout(num_clusters,2);
+for cluster_id = 1:num_clusters
+
+    nexttile;
+    imagesc(squeeze(centroid_images(cluster_id,:,:)))
+    axis image;
+    clim(max(abs(clim)).*[-1,1]*0.7);
+    ap.wf_draw('ccf','k');
+    colormap(ap.colormap('PWG'));
+    ylabel(['Cluster ', num2str(cluster_id)], 'FontSize', 14, 'FontWeight','bold');
+
+
+    this_cluster_unit_idx = unit_unique_avg_animal_group_indices(:,1) == cluster_id;
+    these_days_from_learning = unit_unique_avg_animal_group_indices(this_cluster_unit_idx, 2);
+
+    plot_day_idx = ismember(these_days_from_learning, days_for_plot);
+    for_plot_avg_std_post_stim = avg_unit_std_post_stim{stim_idx}(this_cluster_unit_idx);
+    for_plot_sem_std_post_stim = sem_unit_std_post_stim{stim_idx}(this_cluster_unit_idx);
+
+    % get right colours
+    plotted_days = these_days_from_learning(plot_day_idx);
+%     my_colormap = all_colormap(ismember(colormap_days, plotted_days), :);
+
+    % get num animals for legen
+    num_animals_all = num_animals_stim_unit{stim_idx}(this_cluster_unit_idx);
+    num_animals_plotted = num_animals_all(plot_day_idx);
+
+    % make legend
+    legend_for_plot = arrayfun(@(day, num) ['Day ' num2str(day) ' (n = ' num2str(num) ')'], ...
+        plotted_days, num_animals_plotted, 'UniformOutput', false);
+
+    nexttile;
+    errorbar(plotted_days, for_plot_avg_std_post_stim(plot_day_idx), for_plot_sem_std_post_stim(plot_day_idx), '-o', 'CapSize', 0, ...
+        'MarkerFaceColor', curr_color, 'MarkerEdgeColor', curr_color, 'Color', curr_color);
+
+    title(['Cluster ' num2str(cluster_id)])
+
+end
+
+sgtitle('STD post stim', 'FontSize', 20);
+
+
+%% plot post stim mean
+
+stim_idx = 3;
+
+days_for_plot = -3:2;
+curr_color = 'k';
+% max_colormap = ap.colormap('BKR', 2*max(abs(days_for_plot))+1);
+% colormap_days = -max(abs(days_for_plot)):max(abs(days_for_plot));
+
+figure;
+tiledlayout(num_clusters,2);
+for cluster_id = 1:num_clusters
+
+    nexttile;
+    imagesc(squeeze(centroid_images(cluster_id,:,:)))
+    axis image;
+    clim(max(abs(clim)).*[-1,1]*0.7);
+    ap.wf_draw('ccf','k');
+    colormap(ap.colormap('PWG'));
+    ylabel(['Cluster ', num2str(cluster_id)], 'FontSize', 14, 'FontWeight','bold');
+
+
+    this_cluster_unit_idx = unit_unique_avg_animal_group_indices(:,1) == cluster_id;
+    these_days_from_learning = unit_unique_avg_animal_group_indices(this_cluster_unit_idx, 2);
+
+    plot_day_idx = ismember(these_days_from_learning, days_for_plot);
+    for_plot_avg_mean_post_stim = avg_unit_mean_post_stim{stim_idx}(this_cluster_unit_idx);
+    for_plot_sem_mean_post_stim = sem_unit_mean_post_stim{stim_idx}(this_cluster_unit_idx);
+
+    % get right colours
+    plotted_days = these_days_from_learning(plot_day_idx);
+%     my_colormap = all_colormap(ismember(colormap_days, plotted_days), :);
+
+    % get num animals for legen
+    num_animals_all = num_animals_stim_unit{stim_idx}(this_cluster_unit_idx);
+    num_animals_plotted = num_animals_all(plot_day_idx);
+
+    % make legend
+    legend_for_plot = arrayfun(@(day, num) ['Day ' num2str(day) ' (n = ' num2str(num) ')'], ...
+        plotted_days, num_animals_plotted, 'UniformOutput', false);
+
+    nexttile;
+    errorbar(plotted_days, for_plot_avg_mean_post_stim(plot_day_idx), for_plot_sem_mean_post_stim(plot_day_idx), '-o', 'CapSize', 0, ...
+        'MarkerFaceColor', curr_color, 'MarkerEdgeColor', curr_color, 'Color', curr_color);
+
+    title(['Cluster ' num2str(cluster_id)])
+
+end
+
+sgtitle('MEAN post stim', 'FontSize', 20);
+
+%% plot post norm stim mean
+
+stim_idx = 3;
+
+days_for_plot = -3:2;
+curr_color = 'k';
+% max_colormap = ap.colormap('BKR', 2*max(abs(days_for_plot))+1);
+% colormap_days = -max(abs(days_for_plot)):max(abs(days_for_plot));
+
+figure;
+tiledlayout(num_clusters,2);
+for cluster_id = 1:num_clusters
+
+    nexttile;
+    imagesc(squeeze(centroid_images(cluster_id,:,:)))
+    axis image;
+    clim(max(abs(clim)).*[-1,1]*0.7);
+    ap.wf_draw('ccf','k');
+    colormap(ap.colormap('PWG'));
+    ylabel(['Cluster ', num2str(cluster_id)], 'FontSize', 14, 'FontWeight','bold');
+
+
+    this_cluster_unit_idx = unit_unique_avg_animal_group_indices(:,1) == cluster_id;
+    these_days_from_learning = unit_unique_avg_animal_group_indices(this_cluster_unit_idx, 2);
+
+    plot_day_idx = ismember(these_days_from_learning, days_for_plot);
+    for_plot_avg_norm_mean_post_stim = avg_unit_norm_mean_post_stim{stim_idx}(this_cluster_unit_idx);
+    for_plot_sem_norm_mean_post_stim = sem_unit_norm_mean_post_stim{stim_idx}(this_cluster_unit_idx);
+
+    % get right colours
+    plotted_days = these_days_from_learning(plot_day_idx);
+%     my_colormap = all_colormap(ismember(colormap_days, plotted_days), :);
+
+    % get num animals for legen
+    num_animals_all = num_animals_stim_unit{stim_idx}(this_cluster_unit_idx);
+    num_animals_plotted = num_animals_all(plot_day_idx);
+
+    % make legend
+    legend_for_plot = arrayfun(@(day, num) ['Day ' num2str(day) ' (n = ' num2str(num) ')'], ...
+        plotted_days, num_animals_plotted, 'UniformOutput', false);
+
+    nexttile;
+    errorbar(plotted_days, for_plot_avg_norm_mean_post_stim(plot_day_idx), for_plot_sem_norm_mean_post_stim(plot_day_idx), '-o', 'CapSize', 0, ...
+        'MarkerFaceColor', curr_color, 'MarkerEdgeColor', curr_color, 'Color', curr_color);
+
+    title(['Cluster ' num2str(cluster_id)])
+
+end
+
+sgtitle('AM NORM MEAN post stim', 'FontSize', 20);
 
 %% OLD
 %% FOR TRANSFER

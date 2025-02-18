@@ -239,7 +239,7 @@ for animal_idx=1:length(animals)
 
         ephys_animal.unit_smooth_event_psths(use_rec) = {smooth_event_psths}; 
 
-        ephys_animal.single_unit_idx(use_rec) = {single_unit_idx}; 
+        ephys_animal.unit_single_unit_idx(use_rec) = {unit_single_unit_idx}; 
 
         %         ephys_animal.resp_cells(use_rec) = {resp_cells};
 

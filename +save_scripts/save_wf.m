@@ -126,7 +126,7 @@ for animal_idx=1:length(animals)
 
         wf_animal.wf_stim_time(use_rec) = {wf_stim_time};
         wf_animal.V_no_move_stim_align(use_rec) = {V_no_move_stim_align};
-        wf_animal.trial_stim_values(use_rec) = {trial_stim_values};
+        wf_animal.trial_stim_values(use_rec) = {trial_stim_values(no_move_trials)};
 
         disp(['Done day ' num2str(use_rec)])
         

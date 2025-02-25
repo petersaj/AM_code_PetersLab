@@ -71,7 +71,7 @@ for animal_idx=1:length(animals)
 
     wf_animal = table;
 
-    for use_rec=1:length(wf_days)
+    for use_rec=1:length(train_rec_passive)
         rec_day = train_rec_passive(use_rec).day;
         rec_time = train_rec_passive(use_rec).recording{end};
         verbose = true;

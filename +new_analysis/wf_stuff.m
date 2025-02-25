@@ -64,7 +64,7 @@ load(master_U_fn, 'U_master');
 
 %% random
 num_recordings = height(wf);
-unique_stims_nan = unique(vertcat(ephys.trial_stim_values{:})); 
+unique_stims_nan = unique(vertcat(wf.trial_stim_values{:})); 
 unique_stims = unique_stims_nan(~isnan(unique_stims_nan));
 
 wf_stim_time = wf.wf_stim_time{1};
@@ -75,7 +75,7 @@ wf_stim_time = wf.wf_stim_time{1};
 all_avg_stim_Vs = cell(numel(unique_stims), 1);
 for stim_idx = 1:numel(unique_stims)
     stim_grouped_Vs = arrayfun(@(rec_idx) ...
-        wf.V_no_move_stim_align{rec_idx}(ephys.trial_stim_values{rec_idx} == unique_stims(stim_idx), :, :), ...
+        wf.V_no_move_stim_align{rec_idx}(wf.trial_stim_values{rec_idx} == unique_stims(stim_idx), :, :), ...
         1:num_recordings, 'UniformOutput', false);
     temp_avg_stim_grouped_Vs = cellfun(@(rec_V) ...
         squeeze(mean(rec_V, 1)), ...
@@ -155,11 +155,95 @@ for stim_idx=1:numel(unique_stims)
 end
 
 %% get avg image
-avg_image_time_idx = wf_stim_time > 0 & wf_stim_time < 0.2;
+avg_image_time_idx = wf_stim_time > 0 & wf_stim_time < 0.3;
 avg_image_time_px = cellfun(@(x) plab.wf.svd2px(U_master, x(:, avg_image_time_idx, :)), for_plot_Vs, 'uni', false);
 
 mean_avg_image_px = cellfun(@(x) squeeze(nanmean(x, 3)), avg_image_time_px, 'UniformOutput', false);
 max_avg_image_px = cellfun(@(x) squeeze(max(abs(x), [], 3)), avg_image_time_px, 'UniformOutput', false);
+
+%% get max amplitude pfc ROI in window 
+max_ampl_window = wf_stim_time > 0 & wf_stim_time < 0.3;
+
+% get max per rec
+all_max_ampl_pfc_roi = cell(numel(unique_stims), 1);
+for stim_idx = 1:numel(unique_stims)
+    all_max_ampl_pfc_roi{stim_idx} = max(all_norm_stim_pfc_roi{stim_idx}(:, max_ampl_window)', [], 1);
+end
+
+% group and get mean across mice
+mean_max_ampl_pfc_roi = cell(numel(unique_stims), 1);
+for stim_idx = 1:numel(unique_stims)
+    mean_max_ampl_pfc_roi{stim_idx} = ap.groupfun(@nanmean, ...
+        all_max_ampl_pfc_roi{stim_idx}(use_days)', wf_animal_group_clusters_indices);
+end
+
+median_max_ampl_pfc_roi = cell(numel(unique_stims), 1);
+for stim_idx = 1:numel(unique_stims)
+    median_max_ampl_pfc_roi{stim_idx} = ap.groupfun(@median, ...
+        all_max_ampl_pfc_roi{stim_idx}(use_days)', wf_animal_group_clusters_indices);
+end
+
+% do sem for errorbar
+std_max_ampl_pfc_roi = cell(numel(unique_stims), 1);
+sem_max_ampl_pfc_roi = cell(numel(unique_stims), 1);
+for stim_idx=1:numel(unique_stims)
+    std_max_ampl_pfc_roi{stim_idx} = ap.groupfun(@nanstd, ...
+        all_max_ampl_pfc_roi{stim_idx}(use_days)', wf_animal_group_clusters_indices);
+    sem_max_ampl_pfc_roi{stim_idx} = std_max_ampl_pfc_roi{stim_idx} ./ sqrt(num_animals_stim_wf{stim_idx});
+end
+
+%% pfc max ampl plots
+
+days_for_plot = -3:2;
+curr_color = 'k';
+these_days_from_learning = wf_unique_avg_animal_group_indices;
+plot_day_idx = ismember(these_days_from_learning, days_for_plot);
+
+for stim_idx=1:length(unique_stims)
+        
+    for_plot_mean_max_pfc_roi = mean_max_ampl_pfc_roi{stim_idx};
+    for_plot_sem_max_pfc_roi = sem_max_ampl_pfc_roi{stim_idx};
+
+    plotted_days = these_days_from_learning(plot_day_idx);
+
+%     % get num animals for legend
+%     num_animals_plotted = num_animals_stim_wf{stim_idx}(plot_day_idx);
+% 
+%     % make legend
+%     legend_for_plot = arrayfun(@(day, num) ['Day ' num2str(day) ' (n = ' num2str(num) ')'], ...
+%         plotted_days, num_animals_plotted, 'UniformOutput', false);
+
+    figure;
+    errorbar(plotted_days, for_plot_mean_max_pfc_roi(plot_day_idx), for_plot_sem_max_pfc_roi(plot_day_idx), '-o', 'CapSize', 0, ...
+        'MarkerFaceColor', curr_color, 'MarkerEdgeColor', curr_color, 'Color', curr_color);
+    title(['Mean max ampl pfc ROI for stim ' num2str(unique_stims(stim_idx))])
+end
+
+days_for_plot = -3:2;
+curr_color = 'k';
+these_days_from_learning = wf_unique_avg_animal_group_indices;
+plot_day_idx = ismember(these_days_from_learning, days_for_plot);
+
+for stim_idx=1:length(unique_stims)
+        
+    for_plot_median_max_pfc_roi = median_max_ampl_pfc_roi{stim_idx};
+    for_plot_sem_max_pfc_roi = sem_max_ampl_pfc_roi{stim_idx};
+
+    plotted_days = these_days_from_learning(plot_day_idx);
+
+%     % get num animals for legend
+%     num_animals_plotted = num_animals_stim_wf{stim_idx}(plot_day_idx);
+% 
+%     % make legend
+%     legend_for_plot = arrayfun(@(day, num) ['Day ' num2str(day) ' (n = ' num2str(num) ')'], ...
+%         plotted_days, num_animals_plotted, 'UniformOutput', false);
+
+    figure;
+    errorbar(plotted_days, for_plot_median_max_pfc_roi(plot_day_idx), for_plot_sem_max_pfc_roi(plot_day_idx), '-o', 'CapSize', 0, ...
+        'MarkerFaceColor', curr_color, 'MarkerEdgeColor', curr_color, 'Color', curr_color);
+    title(['Median max ampl pfc ROI for stim ' num2str(unique_stims(stim_idx))])
+end
+
 
 %% pfc ROI plots
 

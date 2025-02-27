@@ -627,14 +627,14 @@ for stim_idx=1:length(unique_stims)
     sgtitle(['Max psth amplitude for stim ' num2str(unique_stims(stim_idx))])
 end
 
-% ADD line per mouse in grey 
+% ADD line per mouse in grey
 
 %% combined plot
 
 days_for_plot = -3:2;
 
-psth_curr_color = 'r';
-wf_curr_color = 'b';
+psth_curr_color = [0.7 0 0];
+wf_curr_color = [0 0.7 0];
 wf_these_days_from_learning = wf_unique_avg_animal_group_indices;
 wf_plot_day_idx = ismember(wf_these_days_from_learning, days_for_plot);
 
@@ -672,6 +672,7 @@ for stim_idx=1:length(unique_stims)
         errorbar(wf_plotted_days, for_plot_mean_max_manual_kernel_roi(wf_plot_day_idx), for_plot_sem_max_manual_kernel_roi(wf_plot_day_idx), '-o', 'CapSize', 0, ...
             'MarkerFaceColor', wf_curr_color, 'MarkerEdgeColor', wf_curr_color, 'Color', wf_curr_color);
         ylim([2*10^(-4), 4*10^(-3)])
+        xlim([days_for_plot(1) days_for_plot(end)])
         ylabel('{\Delta}F/F');
         xlabel('Days from association day');
         title('WF max')
@@ -679,6 +680,7 @@ for stim_idx=1:length(unique_stims)
         nexttile;
         imagesc(squeeze(centroid_images(cluster_idx,:,:)))
         axis image;
+        axis off;
         clim(max(abs(clim)).*[-1,1]*0.7);
         ap.wf_draw('ccf','k');
         colormap(ap.colormap('PWG'));
@@ -707,21 +709,31 @@ for stim_idx=1:length(unique_stims)
         errorbar(psth_plotted_days, for_plot_max_mean_psth(:, psth_plot_day_idx), for_plot_max_sem_psth(:, psth_plot_day_idx), '-o', 'CapSize', 0, ...
             'MarkerFaceColor', psth_curr_color, 'MarkerEdgeColor', psth_curr_color, 'Color', psth_curr_color);
         ylim([0 4])
+        xlim([days_for_plot(1) days_for_plot(end)])
+
         ylabel('{\Delta}R/R');
         xlabel('Days from association day');
         title('PSTH max ')
 
+        % combined
         nexttile;
         yyaxis left
         errorbar(wf_plotted_days, for_plot_mean_max_manual_kernel_roi(wf_plot_day_idx), for_plot_sem_max_manual_kernel_roi(wf_plot_day_idx), '-o', 'CapSize', 0, ...
             'MarkerFaceColor', wf_curr_color, 'MarkerEdgeColor', wf_curr_color, 'Color', wf_curr_color);
         ylim([2*10^(-4), 4*10^(-3)])
-        ylabel('WF max')
+        ylabel('WF max', 'Color', wf_curr_color)
+        xlim([days_for_plot(1) days_for_plot(end)])
+        ax = gca;
+        ax.YColor = wf_curr_color;
+
         yyaxis right
         errorbar(psth_plotted_days, for_plot_max_mean_psth(:, psth_plot_day_idx), for_plot_max_sem_psth(:, psth_plot_day_idx), '-o', 'CapSize', 0, ...
             'MarkerFaceColor', psth_curr_color, 'MarkerEdgeColor', psth_curr_color, 'Color', psth_curr_color);
         ylim([0 3])
+        xlim([days_for_plot(1) days_for_plot(end)])
         ylabel('PSTH max')
+        ax = gca;
+        ax.YColor = psth_curr_color;
     end
     sgtitle(['Stim ' num2str(unique_stims(stim_idx))])
 end

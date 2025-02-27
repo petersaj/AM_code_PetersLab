@@ -452,56 +452,56 @@ end
 
 %% - plot frac resp
 
-stim_idx = 3;
-
 days_for_plot = -3:2;
 curr_color = 'k';
 % max_colormap = ap.colormap('BKR', 2*max(abs(days_for_plot))+1);
 % colormap_days = -max(abs(days_for_plot)):max(abs(days_for_plot));
 
+for stim_idx=1:length(unique_stims)
 
-figure;
-tiledlayout(num_clusters,2);
-for cluster_id = 1:num_clusters
+    figure;
+    tiledlayout(num_clusters,2);
+    for cluster_id = 1:num_clusters
 
-    nexttile;
-    imagesc(squeeze(centroid_images(cluster_id,:,:)))
-    axis image;
-    clim(max(abs(clim)).*[-1,1]*0.7);
-    ap.wf_draw('ccf','k');
-    colormap(ap.colormap('PWG'));
-    ylabel(['Cluster ', num2str(cluster_id)], 'FontSize', 14, 'FontWeight','bold');
+        nexttile;
+        imagesc(squeeze(centroid_images(cluster_id,:,:)))
+        axis image;
+        clim(max(abs(clim)).*[-1,1]*0.7);
+        ap.wf_draw('ccf','k');
+        colormap(ap.colormap('PWG'));
+        ylabel(['Cluster ', num2str(cluster_id)], 'FontSize', 14, 'FontWeight','bold');
 
 
-    this_cluster_unit_idx = unit_unique_avg_animal_group_indices(:,1) == cluster_id;
-    these_days_from_learning = unit_unique_avg_animal_group_indices(this_cluster_unit_idx, 2);
+        this_cluster_unit_idx = unit_unique_avg_animal_group_indices(:,1) == cluster_id;
+        these_days_from_learning = unit_unique_avg_animal_group_indices(this_cluster_unit_idx, 2);
 
-    plot_day_idx = ismember(these_days_from_learning, days_for_plot);
-    for_plot_avg_frac = avg_frac_resp_units{stim_idx}(this_cluster_unit_idx);
-    for_plot_sem_frac = sem_frac_resp_units{stim_idx}(this_cluster_unit_idx);
+        plot_day_idx = ismember(these_days_from_learning, days_for_plot);
+        for_plot_avg_frac = avg_frac_resp_units{stim_idx}(this_cluster_unit_idx);
+        for_plot_sem_frac = sem_frac_resp_units{stim_idx}(this_cluster_unit_idx);
 
-    % get right colours
-    plotted_days = these_days_from_learning(plot_day_idx);
-%     my_colormap = all_colormap(ismember(colormap_days, plotted_days), :);
+        % get right colours
+        plotted_days = these_days_from_learning(plot_day_idx);
+        %     my_colormap = all_colormap(ismember(colormap_days, plotted_days), :);
 
-    % get num animals for legen
-    num_animals_all = num_animals_stim_unit{stim_idx}(this_cluster_unit_idx);
-    num_animals_plotted = num_animals_all(plot_day_idx);
+        % get num animals for legen
+        num_animals_all = num_animals_stim_unit{stim_idx}(this_cluster_unit_idx);
+        num_animals_plotted = num_animals_all(plot_day_idx);
 
-    % make legend
-    legend_for_plot = arrayfun(@(day, num) ['Day ' num2str(day) ' (n = ' num2str(num) ')'], ...
-        plotted_days, num_animals_plotted, 'UniformOutput', false);
+        % make legend
+        legend_for_plot = arrayfun(@(day, num) ['Day ' num2str(day) ' (n = ' num2str(num) ')'], ...
+            plotted_days, num_animals_plotted, 'UniformOutput', false);
 
-    nexttile;
-    errorbar(plotted_days, for_plot_avg_frac(plot_day_idx), for_plot_sem_frac(plot_day_idx), '-o', 'CapSize', 0, ...
-        'MarkerFaceColor', curr_color, 'MarkerEdgeColor', curr_color, 'Color', curr_color);
+        nexttile;
+        errorbar(plotted_days, for_plot_avg_frac(plot_day_idx), for_plot_sem_frac(plot_day_idx), '-o', 'CapSize', 0, ...
+            'MarkerFaceColor', curr_color, 'MarkerEdgeColor', curr_color, 'Color', curr_color);
 
-    ylim([0,0.4])
-    title(['Cluster ' num2str(cluster_id)])
+        ylim([0,0.25])
+        title(['Cluster ' num2str(cluster_id)])
 
-end
-
-sgtitle('Frac resp units', 'FontSize', 20);
+    end
+    frac_resp_title = ['Frac resp units for stim ' num2str(unique_stims(stim_idx))];
+    sgtitle(frac_resp_title, 'FontSize', 20);
+ end
 
 %% STD and MEAN avg
 
@@ -1278,204 +1278,7 @@ end
 
 sgtitle('NON RESP units STD post stim', 'FontSize', 20);
 
-%% OLD
-% %% FOR TRANSFER
-% 
-% %% - psths
-% % use for all
-% use_unique_days_from_learning = unique_days_from_learning(4:8);
-% legend_labels_days = cellfun(@(x) sprintf('Day %d', x), ...
-%     num2cell(use_unique_days_from_learning), 'UniformOutput', false);
-% 
-% n_days = length(unique_days_from_learning);
-% contra_good_days = ~any(isnan(contra_max_ampl_grouped_psths), 2);
-% figure;
-% tiledlayout(num_clusters,5)
-% for cluster_id=1:num_clusters
-%     for day_idx=1:n_days
-%         if ~ismember(unique_days_from_learning(day_idx), use_unique_days_from_learning)
-%             continue
-%         end
-%         ax = nexttile;
-%         hold on;
-%         plot(bin_centres, contra_avg_smooth_norm_grouped_psths{cluster_id, day_idx}, 'k', 'LineWidth', 2);
-%         xlim([0 0.3])
-%         ylim([-1 2.5])
-%         box off;
-%         ax.XColor = 'none';
-%         ax.YColor = 'none';
-%         ax.Color = 'white';
-%         hold on;
-%         AP_scalebar(0.1, 0.5)
-%     end
-% end
-% % sgtitle('Contra Stim', 'FontSize', 20, 'FontWeight','bold')
-% 
-% %     nexttile;
-% %     imagesc(squeeze(centroid_images(cluster_id,:,:)))
-% %     axis image;
-% %     clim(max(abs(clim)).*[-1,1]*0.7);
-% %     ap.wf_draw('ccf','k');
-% %     colormap(ap.colormap('PWG'));
-% %     box off;
-% %     axis off;
-% %     ylabel(['Map ', num2str(cluster_id)], 'FontSize', 20, 'FontWeight','bold');
-% 
-% %% - max ampl
-% figure;
-% contra_days_on_plot = unique_days_from_learning(contra_good_days);
-% tiledlayout(num_clusters,2);
-% for cluster_id=1:num_clusters
-%     nexttile;
-%     imagesc(squeeze(centroid_images(cluster_id,:,:)))
-%     axis image;
-%     clim(max(abs(clim)).*[-1,1]*0.7);
-%     ap.wf_draw('ccf','k');
-%     colormap(ap.colormap('PWG'));
-%     ylabel(['Cluster ', num2str(cluster_id)], 'FontSize', 14, 'FontWeight','bold');
-% 
-%     nexttile;
-%     for mouse_id = 1:length(unique_animal_ids)
-%         plot(unique_days_from_learning, contra_per_mouse_max_ampl{mouse_id, cluster_id}, ...
-%             '-o', 'MarkerFaceColor', [0.5 0.5 0.5], 'MarkerEdgeColor', [0.5 0.5 0.5], 'Color', [0.5 0.5 0.5]);
-%         hold on;
-%     end
-%     plot(unique_days_from_learning, contra_max_ampl_grouped_psths(:,cluster_id), ...
-%         '-o', 'MarkerFaceColor', 'k', 'MarkerEdgeColor', 'k', 'Color', 'k');    xlabel('Days from association day')
-%     ylabel('Increase in firing rate')
-%     xlim([use_unique_days_from_learning(1), use_unique_days_from_learning(end)])
-%     ylim([-0.5 1])
-% end
-% sgtitle('Contra Stim', 'FontSize', 20, 'FontWeight','bold')
-% 
-% % NEW
-% 
-% figure;
-% contra_days_on_plot = unique_days_from_learning(contra_good_days);
-% tiledlayout(num_clusters, 2);
-% 
-% for cluster_id = 1:num_clusters
-%     nexttile;
-%     imagesc(squeeze(centroid_images(cluster_id, :, :)))
-%     axis image;
-%     clim(max(abs(clim)) .* [-1, 1] * 0.7);
-%     ap.wf_draw('ccf', 'k');
-%     colormap(ap.colormap('PWG'));
-%     ylabel(['Cluster ', num2str(cluster_id)], 'FontSize', 14, 'FontWeight', 'bold');
-% 
-%     nexttile;
-%     % Initialize a matrix to hold the data for SEM calculation
-%     data_for_sem = zeros(length(unique_animal_ids), length(unique_days_from_learning));
-% 
-%     for mouse_id = 1:length(unique_animal_ids)
-%         % Collect data for each mouse
-%         data_for_sem(mouse_id, :) = contra_per_mouse_max_ampl{mouse_id, cluster_id};
-%     end
-% 
-%     % Calculate mean and SEM
-%     mean_ampl = mean(data_for_sem, 1, 'omitnan');  % Mean along the mouse_id dimension
-%     sem_ampl = std(data_for_sem, 0, 1, 'omitnan') ./ sqrt(size(data_for_sem, 1));  % SEM
-% 
-%     % Plot mean with error bars
-%     errorbar(unique_days_from_learning, mean_ampl, sem_ampl, '-o', ...
-%         'MarkerFaceColor', 'k', 'MarkerEdgeColor', 'k', 'Color', 'k');
-%     xlabel('Days from association day');
-%     ylabel('Increase in firing rate');
-%     xlim([use_unique_days_from_learning(1), use_unique_days_from_learning(end)]);
-%     ylim([-0.5 1]);
-% end
-% 
-% sgtitle('Contra Stim', 'FontSize', 20, 'FontWeight', 'bold');
-% 
-% %% - NEW MAX ALL ON ONE
-% use_unique_days_from_learning = unique_days_from_learning(3:9);
-% 
-% my_colors = ap.colormap('KR', num_clusters);
-% new_my_colors = my_colors([3 1 4 2], :);
-% figure('Position', [680 50 320 950]);
-% for cluster_id = 1:num_clusters
-%     % Initialize a matrix to hold the data for SEM calculation
-%     data_for_sem = zeros(length(unique_animal_ids), length(unique_days_from_learning));
-% 
-%     for mouse_id = 1:length(unique_animal_ids)
-%         % Collect data for each mouse
-%         data_for_sem(mouse_id, :) = contra_per_mouse_max_ampl{mouse_id, cluster_id};
-%     end
-% 
-%     % Calculate mean and SEM
-%     mean_ampl = mean(data_for_sem, 1, 'omitnan');  % Mean along the mouse_id dimension
-%     sem_ampl = std(data_for_sem, 0, 1, 'omitnan') ./ sqrt(size(data_for_sem, 1));  % SEM
-% 
-%     median_ampl = median(data_for_sem, 1, 'omitnan');  % Mean along the mouse_id dimension
-% 
-%     % get colour
-%     curr_color = new_my_colors(cluster_id,:);
-%     % Plot mean with error bars
-%     hold on;
-%     errorbar(unique_days_from_learning, median_ampl, sem_ampl, '-o', 'CapSize', 0, ...
-%         'MarkerFaceColor', curr_color, 'MarkerEdgeColor', curr_color, 'Color', curr_color);
-% end
-% 
-% xlabel('Days from association day', 'FontSize', 20);
-% ylabel('{\Delta}R/R', 'FontSize', 20);
-% xlim([use_unique_days_from_learning(1), use_unique_days_from_learning(end)]);
-% 
-% ax = get(gca);
-% % Customize tick labels and spacing
-% ax.XAxis.FontSize = 16;  % Set X-axis tick label font size
-% ax.YAxis.FontSize = 16;  % Set Y-axis tick label font size
-% 
-% % Set specific intervals for ticks to make them more sparse
-% xticks(-3:2:3); % 5 ticks on X-axis
-% yticks(0:0.5:2.5); % Customize Y-axis tick intervals
-% 
-% 
-% %% - same but different shape for poster
-% % - NEW MAX ALL ON ONE
-% use_unique_days_from_learning = unique_days_from_learning(3:9);
-% 
-% my_colors = ap.colormap('KR', num_clusters);
-% new_my_colors = my_colors([3 1 4 2], :);
-% figure('Position', [680 50 880 750]);
-% for cluster_id = 1:num_clusters
-%     % Initialize a matrix to hold the data for SEM calculation
-%     data_for_sem = zeros(length(unique_animal_ids), length(unique_days_from_learning));
-% 
-%     for mouse_id = 1:length(unique_animal_ids)
-%         % Collect data for each mouse
-%         data_for_sem(mouse_id, :) = contra_per_mouse_max_ampl{mouse_id, cluster_id};
-%     end
-% 
-%     % Calculate mean and SEM
-%     mean_ampl = mean(data_for_sem, 1, 'omitnan');  % Mean along the mouse_id dimension
-%     sem_ampl = std(data_for_sem, 0, 1, 'omitnan') ./ sqrt(size(data_for_sem, 1));  % SEM
-% 
-%     median_ampl = median(data_for_sem, 1, 'omitnan');  % Mean along the mouse_id dimension
-% 
-%     % get colour
-%     curr_color = new_my_colors(cluster_id,:);
-%     % Plot mean with error bars
-%     hold on;
-%     errorbar(unique_days_from_learning, median_ampl, sem_ampl, '-o', 'CapSize', 0, ...
-%         'MarkerFaceColor', curr_color, 'MarkerEdgeColor', curr_color, 'Color', curr_color);
-% end
-% 
-% xlabel('Days from association day', 'FontSize', 40);
-% ylabel('{\Delta}R/R', 'FontSize', 40);
-% xlim([use_unique_days_from_learning(1), use_unique_days_from_learning(end)]);
-% 
-% ax = get(gca);
-% % Customize tick labels and spacing
-% ax.XAxis.FontSize = 30;  % Set X-axis tick label font size
-% ax.YAxis.FontSize = 30;  % Set Y-axis tick label font size
-% 
-% % Set specific intervals for ticks to make them more sparse
-% xticks(-3:2:3); % 5 ticks on X-axis
-% yticks(0:0.5:2.5); % Customize Y-axis tick intervals
-% 
-% %%%%%% copy of main_ctx_str_maps %%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% 
-% %% temp check correlation
+%% temp check correlation
 % %
 % % % Initialize arrays to store the results
 % % num_maps = size(all_flattened_cortex_kernel_px, 1);

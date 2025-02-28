@@ -1,5 +1,6 @@
 %% load
 save_path = '\\qnap-ap001.dpag.ox.ac.uk\APlab\Users\Andrada-Maria_Marica\long_str_ctx_data';
+
 bhv_data_path = fullfile(save_path, "swr_bhv.mat");
 wf_data_path = fullfile(save_path, "ctx_wf.mat");
 ephys_data_path = fullfile(save_path, "ephys.mat");

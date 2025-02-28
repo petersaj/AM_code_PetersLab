@@ -44,6 +44,12 @@ for animal_idx=1:length(animals)
 
         trial_stim_values = ones(length(stimOn_times), 1);
 
+        %% cell type labels
+        AP_longstriatum_classify_striatal_units
+        str_tan_idx = striatum_celltypes.tan;
+        str_fsi_idx = striatum_celltypes.fsi;
+        str_msn_idx = striatum_celltypes.msn;
+
         %% Get striatum boundaries - Just skip missing depth ones
 
         AP_longstriatum_find_striatum_depth
@@ -208,6 +214,10 @@ for animal_idx=1:length(animals)
         task_ephys_animal.unit_smooth_event_psths(use_rec) = {smooth_event_psths}; 
 
         task_ephys_animal.single_unit_idx(use_rec) = {single_unit_idx}; 
+
+        task_ephys_animal.str_tan_idx(use_rec) = {str_tan_idx}; 
+        task_ephys_animal.str_fsi_idx(use_rec) = {str_fsi_idx}; 
+        task_ephys_animal.str_msn_idx(use_rec) = {str_msn_idx}; 
 
         disp(['Done day ' num2str(use_rec)])
 

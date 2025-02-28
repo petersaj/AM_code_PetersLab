@@ -43,6 +43,13 @@ for animal_idx=1:length(animals)
         %% single unit labels
         single_unit_idx = strcmp(template_qc_labels, 'singleunit'); 
 
+
+        %% cell type labels
+        AP_longstriatum_classify_striatal_units
+        str_tan_idx = striatum_celltypes.tan;
+        str_fsi_idx = striatum_celltypes.fsi;
+        str_msn_idx = striatum_celltypes.msn;
+
         %% trial stim values
 
         trial_stim_values = vertcat(trial_events.values.TrialStimX);
@@ -241,7 +248,9 @@ for animal_idx=1:length(animals)
 
         ephys_animal.single_unit_idx(use_rec) = {single_unit_idx}; 
 
-        %         ephys_animal.resp_cells(use_rec) = {resp_cells};
+        ephys_animal.str_tan_idx(use_rec) = {str_tan_idx}; 
+        ephys_animal.str_fsi_idx(use_rec) = {str_fsi_idx}; 
+        ephys_animal.str_msn_idx(use_rec) = {str_msn_idx}; 
 
         disp(['Done day ' num2str(use_rec)])
 

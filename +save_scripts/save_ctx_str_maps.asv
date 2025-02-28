@@ -21,9 +21,9 @@ for animal_idx=1:length(animals)
 %     ephys_days =  bhv_days([train_rec_passive.ephys]);
 %     
     ctx_maps_to_str = table;
-    for use_rec=1:length(recordings_task)
-        rec_day = recordings_task(use_rec).day;
-        rec_time = recordings_task(use_rec).recording{end};
+    for use_rec=1:length(train_rec_passive)
+        rec_day = train_rec_passive(use_rec).day;
+        rec_time = train_rec_passive(use_rec).recording{end};
         ap.load_recording;
 
 %         this_day_from_learning = days_from_learning(ismember(bhv_days, rec_day));

@@ -40,9 +40,25 @@ for animal_idx=1:length(animals)
         load_parts.ephys = true;
         ap.load_recording
 
+        %% Get striatum boundaries - Just skip missing depth ones
+
+        AP_longstriatum_find_striatum_depth
+        mua_length = 200;
+        depth_group_edges = striatum_depth(1):mua_length:striatum_depth(end);
+        try
+            depth_group = discretize(spike_depths,depth_group_edges);
+        catch ME
+            warning(['Undefined str depth ' animal ' ' rec_day])
+            %             depth_group = nan;
+            ephys_animal.animal(use_rec) = {animal};
+            ephys_animal.rec_day(use_rec) = {rec_day};
+            continue
+        end
+
+        unit_depth_group = discretize(template_depths, depth_group_edges);
+
         %% single unit labels
         single_unit_idx = strcmp(template_qc_labels, 'singleunit'); 
-
 
         %% cell type labels
         AP_longstriatum_classify_striatal_units
@@ -70,22 +86,7 @@ for animal_idx=1:length(animals)
         stim_wheel_move = interp1(t,+wheel_move,time_stimulus);
         no_move_trials = sum(stim_wheel_move(:,stim_frame:end),2)==0;
 
-        %% Get striatum boundaries - Just skip missing depth ones
-
-        AP_longstriatum_find_striatum_depth
-        mua_length = 200;
-        depth_group_edges = striatum_depth(1):mua_length:striatum_depth(end);
-        try
-            depth_group = discretize(spike_depths,depth_group_edges);
-        catch ME
-            warning(['Undefined str depth ' animal ' ' rec_day])
-            %             depth_group = nan;
-            ephys_animal.animal(use_rec) = {animal};
-            ephys_animal.rec_day(use_rec) = {rec_day};
-            continue
-        end
-
-        unit_depth_group = discretize(template_depths, depth_group_edges);
+ 
         %% psth
         [~,binned_spikes_stim_align] = ap.psth(spike_times_timelite, ...
             stimOn_times (no_move_trials),  ...

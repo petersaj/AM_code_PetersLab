@@ -39,17 +39,6 @@ for animal_idx=1:length(animals)
         load_parts.ephys = true;
         ap.load_recording
 
-        %% single unit labels and trial values
-        single_unit_idx = strcmp(template_qc_labels, 'singleunit');
-
-        trial_stim_values = ones(length(stimOn_times), 1);
-
-        %% cell type labels
-        AP_longstriatum_classify_striatal_units
-        str_tan_idx = striatum_celltypes.tan;
-        str_fsi_idx = striatum_celltypes.fsi;
-        str_msn_idx = striatum_celltypes.msn;
-
         %% Get striatum boundaries - Just skip missing depth ones
 
         AP_longstriatum_find_striatum_depth
@@ -66,9 +55,21 @@ for animal_idx=1:length(animals)
         end
 
         unit_depth_group = discretize(template_depths, depth_group_edges);
+
+        %% single unit labels and trial values
+        single_unit_idx = strcmp(template_qc_labels, 'singleunit');
+
+        trial_stim_values = ones(length(n_trials), 1);
+
+        %% cell type labels
+        AP_longstriatum_classify_striatal_units
+        str_tan_idx = striatum_celltypes.tan;
+        str_fsi_idx = striatum_celltypes.fsi;
+        str_msn_idx = striatum_celltypes.msn;
+
         %% psth
         [~,binned_spikes_stim_align] = ap.psth(spike_times_timelite, ...
-            stimOn_times,  ...
+            stimOn_times(1:n_trials),  ...
             depth_group);
 
         %% EDIT: unit responsivenes
@@ -77,12 +78,12 @@ for animal_idx=1:length(animals)
         % create pre and post stim onsets
         bin_window_for_pre = 0.2;
         bin_window_for_post = 0.2;
-        pre_stim_time = stimOn_times - [bin_window_for_pre 0];
-        post_stim_time = stimOn_times + [0 bin_window_for_post];
+        pre_stim_time = stimOn_times(1:n_trials) - [bin_window_for_pre 0];
+        post_stim_time = stimOn_times(1:n_trials) + [0 bin_window_for_post];
 
         % group stim times into cell arrays before use arrayfun
         % example:
-        use_align = arrayfun(@(x) stimOn_times, ...
+        use_align = arrayfun(@(x) stimOn_times(1:n_trials), ...
             unique(trial_stim_values),'uni',false);
         
         [event_psths,~] = ap.psth(spike_times_timelite,use_align,spike_templates);

@@ -89,7 +89,7 @@ for animal_idx=1:length(animals)
 %         V_interp = interp1(wf_t,wf_V',grab_time)';
         
         wf_stim_time = -0.5:0.01:1;
-        wf_stim_interp_time = stimOn_times + wf_stim_time;
+        wf_stim_interp_time = stimOn_times(1:n_trials) + wf_stim_time;
 
         V_stim_align = interp1(wf_t,V_master',wf_stim_interp_time);
 

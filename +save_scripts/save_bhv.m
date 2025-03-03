@@ -46,9 +46,9 @@ for animal_idx=1:length(animals)
         bhv_animal.stimwheel_rxn_mean(use_rec) = {stimwheel_rxn_mean};
         bhv_animal.stimwheel_rxn_null_mean(use_rec) = {stimwheel_rxn_null_mean};
         % reaction times
-        bhv_animal.stim_to_move(use_rec) = {stim_to_move};
-        bhv_animal.trial_outcome(use_rec) = {trial_outcome};
-        bhv_animal.stim_to_reward(use_rec) = {stim_to_reward};
+        bhv_animal.stim_to_move(use_rec) = {stim_to_move(1:n_trials)};
+        bhv_animal.trial_outcome(use_rec) = {trial_outcome(1:n_trials)};
+        bhv_animal.stim_to_reward(use_rec) = {stim_to_reward(1:n_trials)};
 
     end
 

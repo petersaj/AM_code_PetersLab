@@ -70,7 +70,7 @@ for animal_idx=1:length(animals)
 %     wf_days =  bhv_days(arrayfun(@(x) train_rec_passive(x).widefield(end), ...
 %         1:length(train_rec_passive))); % add to ephys and other scripts
 
-    wf_animal = table;
+    task_wf_animal = table;
 
     for use_rec=1:length(recordings_task)
         rec_day = recordings_task(use_rec).day;
@@ -104,28 +104,28 @@ for animal_idx=1:length(animals)
 
 
         %% -- save
-        wf_animal.animal(use_rec) = {animal};
-        wf_animal.rec_day(use_rec) = {rec_day};
+        task_wf_animal.animal(use_rec) = {animal};
+        task_wf_animal.rec_day(use_rec) = {rec_day};
 
-        wf_animal.wf_stim_time(use_rec) = {wf_stim_time};
-        wf_animal.V_stim_align(use_rec) = {V_stim_align};
+        task_wf_animal.wf_stim_time(use_rec) = {wf_stim_time};
+        task_wf_animal.V_stim_align(use_rec) = {V_stim_align};
 
         disp(['Done day ' num2str(use_rec)])
         
     end
-    all_wf_save_cell{animal_idx} = wf_animal;
+    all_task_wf_save_cell{animal_idx} = task_wf_animal;
     disp(['Done ' animal])
 end
 
-wf = vertcat(all_wf_save_cell{:});
+task_wf = vertcat(all_task_wf_save_cell{:});
 
 % ctx_wf.U_master(:) = {U_master};
 
 % ctx_wf.vis_roi_mask(:) = {vis_roi_mask};
 % ctx_wf.pfc_roi_mask(:) = {pfc_roi_mask};
 
-save_name = fullfile(save_path, 'ctx_wf');
-save(save_name, "wf", "-v7.3");
+save_name = fullfile(save_path, 'task_ctx_wf');
+save(save_name, "task_wf", "-v7.3");
 
 % copy master
 copy_master_path = fullfile(save_path, 'U_master.mat');

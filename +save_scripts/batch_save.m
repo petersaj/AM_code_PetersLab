@@ -1,7 +1,7 @@
-save_scripts.task_save_ephys
+save_scripts.save_ephys
 clear all
 
-save_scripts.task_save_wf
+save_scripts.task_save_ephys
 clear all
 
 

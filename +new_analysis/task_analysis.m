@@ -639,7 +639,7 @@ for cluster_idx=1:num_clusters
     sgtitle(['RT sort vs str response for Cluster ' num2str(cluster_idx)])
 end
 
-%% combine median on one plot
+%% combine mean on one plot
 days_for_plot = -3:2;
 all_colormap = ap.colormap('BKR', 2*max(abs(days_for_plot))+1);
 colormap_days = -max(abs(days_for_plot)):max(abs(days_for_plot));
@@ -723,8 +723,9 @@ end
 %     sgtitle(['RT split (left) and trial split (right) Cluster ' num2str(cluster_idx)])
 % end
 
-%% RT bin split
+%% RT bin split - log rn
 discretize_all_RT_bin = [-Inf,0:0.2:0.6,Inf];
+log_discretize_all_RT_bin = [-Inf logspace(-1,1,5) Inf];
 temp_for_psth_bin_RT_split_trial_ids_cell = cell(1, num_recordings);
 for rec_idx=1:num_recordings
     % (to discretize by RT bin)
@@ -806,7 +807,7 @@ psth_window_for_max = psth_stim_time>0 & psth_stim_time<0.3;
 psth_all_grouped_bin_RT_trial_split_max_ampl = max(psth_grouped_cluster_bin_RT_split_trial_smooth_norm(:, psth_window_for_max), [], 2);
 
 % group by ld and split trial
-psth_bin_RT_trial_split_mean_max_ampl = ap.groupfun(@mean, ...
+psth_bin_RT_trial_split_mean_max_ampl = ap.groupfun(@nanmean, ...
     psth_all_grouped_bin_RT_trial_split_max_ampl, psth_animal_group_clusters_bin_RT_indices);
 
 % do sem for errorbar
@@ -1235,6 +1236,120 @@ for cluster_idx=1:num_clusters
     end
     sgtitle(['Str response vs cumulative for Cluster ' num2str(cluster_idx)])
 end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% START trials back
+
+num_trials_back = 10;
+good_RT_range = [0.01, 0.5];
+% test1 = [0 0 1 1 1 0 1 0 0 1 0 1 1 1 1 1];
+% for i=1:length(test1)
+%     if i<=num_trials_back
+%         test2(i) = sum(test1(1:i-1));
+%     else
+%         test2(i) = sum(test1(i-num_trials_back:i-1));
+%     end
+% end
+
+good_RT_trials_back_lengths_cell = cell(size(all_RT)); 
+for rec_idx = 1:num_recordings
+    RT_values = all_RT{rec_idx};
+
+    good_RT_trials = (RT_values >= good_RT_range(1) & RT_values <= good_RT_range(2));
+    good_RT_binary_cell{rec_idx} = double(good_RT_trials);
+
+    good_RT_trials_back_lengths = nan(size(good_RT_binary_cell{rec_idx}));
+    for i=1:length(good_RT_binary_cell{rec_idx})
+        if i<=num_trials_back
+%             good_RT_trials_back_lengths(i) = sum(good_RT_binary_cell{rec_idx}(1:i-1));
+            continue;
+        elseif good_RT_binary_cell{rec_idx}(i) == 1
+            good_RT_trials_back_lengths(i) = sum(good_RT_binary_cell{rec_idx}(i-num_trials_back:i-1));
+        end
+    end
+
+    good_RT_trials_back_lengths_cell{rec_idx} = good_RT_trials_back_lengths;
+end
+for_psth_good_RT_trials_back_lengths_cell = arrayfun(@(rec_idx) ...
+    repmat(good_RT_trials_back_lengths_cell{rec_idx}', 1, n_depths(rec_idx))', ...
+    1:num_recordings, 'UniformOutput', false);
+for_psth_good_RT_trials_back_lengths = vertcat(for_psth_good_RT_trials_back_lengths_cell{:});
+
+% - make indices for trials_back good RT sequence
+% cluster id has nans!!!!!!!!!!!!
+psth_good_RT_trials_back_group_indices = [for_psth_animal_ids(psth_use_days), for_psth_good_RT_trials_back_lengths(psth_use_days), ...
+    for_psth_days_from_learning(psth_use_days), for_psth_cluster_ids(psth_use_days)];
+[psth_unique_good_RT_trials_back_indices, ~, psth_good_RT_trials_back_indices] = unique(psth_good_RT_trials_back_group_indices, 'rows');
+
+psth_grouped_cluster_good_RT_trials_back = ap.groupfun(@sum, ...
+    cat_flattened_stim_binned_spikes(psth_use_days, :), psth_good_RT_trials_back_indices, []);
+
+% - norm and smooth sort RT split trial
+psth_grouped_cluster_good_RT_trials_back_smooth_norm = cell2mat(arrayfun(@(rep) ...
+    normalize_and_smooth(psth_grouped_cluster_good_RT_trials_back(rep, :)), ...
+    1:size(psth_grouped_cluster_good_RT_trials_back, 1), ...
+    'UniformOutput', false)');
+
+% - group by ld and RT sort split trial
+psth_good_RT_trials_back_day_trial_indices = [psth_unique_good_RT_trials_back_indices(:, 2), ...
+    psth_unique_good_RT_trials_back_indices(:, 3), ...
+    psth_unique_good_RT_trials_back_indices(:, 4)];
+[psth_unique_avg_animal_group_good_RT_trials_back_indices, ~, ...
+    psth_animal_group_clusters_good_RT_trials_back_indices] = ...
+    unique(psth_good_RT_trials_back_day_trial_indices, 'rows');
+
+avg_psth_grouped_good_RT_trials_back_smooth_norm = ap.groupfun(@mean, ...
+    psth_grouped_cluster_good_RT_trials_back_smooth_norm, ....
+    psth_animal_group_clusters_good_RT_trials_back_indices, []);
+
+% count animals
+num_animals_stim_psth_good_RT_trials_back = accumarray(psth_animal_group_clusters_good_RT_trials_back_indices, 1);
+
+% - get max ampl for good trials_back
+psth_window_for_max = psth_stim_time>0 & psth_stim_time<0.3;
+psth_all_grouped_good_RT_trials_back_max_ampl = max(psth_grouped_cluster_good_RT_trials_back_smooth_norm(:, psth_window_for_max), [], 2);
+
+% group by ld and seq length
+psth_good_RT_trials_back_mean_max_ampl = ap.groupfun(@nanmean, ...
+    psth_all_grouped_good_RT_trials_back_max_ampl, psth_animal_group_clusters_good_RT_trials_back_indices);
+
+% do sem for errorbar
+psth_good_RT_trials_back_std_max_ampl = ap.groupfun(@nanstd, ...
+    psth_all_grouped_good_RT_trials_back_max_ampl, psth_animal_group_clusters_good_RT_trials_back_indices);
+psth_good_RT_trials_back_sem_max_ampl = psth_good_RT_trials_back_std_max_ampl ./ sqrt(num_animals_stim_psth_good_RT_trials_back);
+
+% - plot trials_back
+for cluster_idx=1:num_clusters
+    figure;
+    tiledlayout('flow');
+    for day_idx=1:length(psth_unique_days_from_learning)
+        this_day = psth_unique_days_from_learning(day_idx);
+        this_day_idx = psth_unique_avg_animal_group_good_RT_trials_back_indices(:,2) == this_day;
+        this_cluster_idx =  psth_unique_avg_animal_group_good_RT_trials_back_indices(:,3) == cluster_idx;
+        if sum(this_day_idx & this_cluster_idx) == 0
+            continue
+        end
+        for_plot_mean_max_ampl = psth_good_RT_trials_back_mean_max_ampl(this_day_idx & this_cluster_idx);
+        for_plot_sem_max_ampl = psth_good_RT_trials_back_sem_max_ampl(this_day_idx & this_cluster_idx);
+        for_plot_seq_length = psth_unique_avg_animal_group_good_RT_trials_back_indices(this_day_idx & this_cluster_idx, 1);
+        
+        nexttile;
+%         plot(for_plot_mean_RT, for_plot_mean_max_ampl);
+
+         errorbar(for_plot_seq_length, for_plot_mean_max_ampl, for_plot_sem_max_ampl, 'o', 'CapSize', 0, ...
+        'MarkerFaceColor', curr_color, 'MarkerEdgeColor', curr_color, 'Color', curr_color);
+       ylim([0 25]);
+%         hold on;
+%         xline(for_plot_mean_RT)
+        yline(0)
+        ylabel('Max ampl of str response')
+        xlabel('Seq length in group')
+        title(['Day ' num2str(psth_unique_days_from_learning(day_idx))])
+        colororder(gca, my_colormap);
+    end
+    sgtitle(['Str response vs trials back for Cluster ' num2str(cluster_idx)])
+end
+%% END trials back
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 %% WF

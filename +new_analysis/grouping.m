@@ -12,19 +12,23 @@ load(bhv_data_path)
 load(ephys_data_path)
 load(ctx_str_maps_data_path)
 
+master_U_fn = fullfile(save_path,'U_master.mat');
+load(master_U_fn, 'U_master');
 %% kmeans ids
 
 % get number of things from total MUA - after re-run save script
 all_cortex_kernel_px = cat(3, all_ctx_maps_to_str.cortex_kernel_px{:});
-all_flattened_cortex_kernel_px = reshape(all_cortex_kernel_px, [], ...
-    size(all_cortex_kernel_px, 3))';
 
 % run kmeans
 rng('default');
 rng(0);
 num_clusters = 4;
-[cluster_ids, centroids, sumd] = kmeans(double(all_flattened_cortex_kernel_px), num_clusters, 'Distance', 'correlation',  'Replicates',5);
-
+kmeans_starting = mean(cell2mat(permute(cellfun(@(x) x(:,:,round(linspace(1,size(x,3),4))), ...
+    all_ctx_maps_to_str.cortex_kernel_px(~cellfun(@isempty, ...
+    all_ctx_maps_to_str.cortex_kernel_px)),'uni',false),[2,3,4,1])),4);
+[cluster_ids, centroids, sumd] = kmeans(...
+    reshape(all_cortex_kernel_px,prod(size(U_master,[1,2])),[])',num_clusters, ...
+    'Distance','Correlation','start',reshape(kmeans_starting,[],num_clusters)');
 
 % check who the masters are
 centroid_images = reshape(centroids, [num_clusters, [size(all_cortex_kernel_px, 1) size(all_cortex_kernel_px, 2)]]);
@@ -314,7 +318,7 @@ end
 stim_idx = 3;
 
 days_for_plot = -3:2;
-curr_color = 'k';
+curr_color = 'r';
 % max_colormap = ap.colormap('BKR', 2*max(abs(days_for_plot))+1);
 % colormap_days = -max(abs(days_for_plot)):max(abs(days_for_plot));
 
@@ -353,7 +357,7 @@ for cluster_id = 1:num_clusters
     nexttile;
     errorbar(plotted_days, for_plot_max_mean(:, plot_day_idx), for_plot_max_sem(:, plot_day_idx), '-o', 'CapSize', 0, ...
         'MarkerFaceColor', curr_color, 'MarkerEdgeColor', curr_color, 'Color', curr_color);
-
+    ylim([0 12])
     title(['Cluster ' num2str(cluster_id)])
 
 end

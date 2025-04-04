@@ -497,7 +497,7 @@ for cluster_idx = 1:num_clusters
     sgtitle(['SORT split Cluster ' num2str(cluster_idx)]);
 end
 
-%% LEFT HERE
+%% ADD HERE rest of sort
 % add sort split mean RT stuff
 % redo those plots
 
@@ -637,7 +637,287 @@ for cluster_idx = 1:num_clusters
     xtickangle(45); % Rotate for better visibility
     ylim([0 8])
     title('PSTH max amplitude mean')
-    sgtitle(['Cluster ' num2str(cluster_idx)]);
+    sgtitle(['RT bin split Cluster ' num2str(cluster_idx)]);
 end
 
+%% consecutive - get 'good' RT trial sequences
+good_RT_range = [0.01, 1];
+good_RT_binary_cell = cell(size(all_RT));
+good_RT_sequence_lengths_cell = cell(size(all_RT)); % Store sequence lengths per recording
+for rec_idx = 1:num_recordings
+    RT_values = all_RT{rec_idx};
 
+    good_RT_trials = (RT_values >= good_RT_range(1) & RT_values <= good_RT_range(2));
+    good_RT_binary_cell{rec_idx} = double(good_RT_trials);
+
+    good_RT_sequence_lengths = zeros(size(good_RT_binary_cell{rec_idx}));
+    seq_counter = 0;
+
+    for i = 1:length(good_RT_binary_cell{rec_idx})
+        if good_RT_binary_cell{rec_idx}(i) == 1
+            seq_counter = seq_counter + 1;  
+        else
+            seq_counter = 0;  
+        end
+        good_RT_sequence_lengths(i) = seq_counter; 
+    end
+
+    good_RT_sequence_lengths_cell{rec_idx} = good_RT_sequence_lengths;
+end
+for_psth_good_RT_sequence_lengths_cell = arrayfun(@(rec_idx) ...
+    repmat(good_RT_sequence_lengths_cell{rec_idx}', 1, psth_num_clusters(rec_idx))', ...
+    1:num_recordings, 'UniformOutput', false);
+for_psth_good_RT_sequence_lengths = vertcat(for_psth_good_RT_sequence_lengths_cell{:});
+
+%% - avg across animals in 'good' RT trial sequences groups
+[avg_psth_grouped_good_RT_sequence_smooth_norm,psth_unique_avg_animal_group_good_RT_sequence_indices] = ...
+    ap.nestgroupfun({@mean, @mean},cat_smooth_norm_stim_psths, ...
+    for_psth_animal_ids, ...
+    [for_psth_good_RT_sequence_lengths, for_psth_days_from_learning, for_psth_cluster_ids]);
+num_animals_stim_psth_good_RT_sequence = ...
+    mean(ap.nestgroupfun({@mean, @length},cat_smooth_norm_stim_psths, ...
+    for_psth_animal_ids, ...
+    [for_psth_good_RT_sequence_lengths, for_psth_days_from_learning, for_psth_cluster_ids]), ...
+    2);
+
+%% get max ampl for good sequence
+% group by ld and split trial
+psth_good_RT_sequence_mean_max_ampl = ap.nestgroupfun({@mean, @mean},psth_all_trial_split_max_ampl, ...
+    for_psth_animal_ids, ...
+    [for_psth_good_RT_sequence_lengths, for_psth_days_from_learning, for_psth_cluster_ids]);
+
+% do sem for errorbar
+psth_good_RT_sequence_std_max_ampl = ap.nestgroupfun({@mean, @nanstd},psth_all_trial_split_max_ampl, ...
+    for_psth_animal_ids, ...
+    [for_psth_good_RT_sequence_lengths, for_psth_days_from_learning, for_psth_cluster_ids]);
+psth_good_RT_sequence_sem_max_ampl = psth_good_RT_sequence_std_max_ampl ./ sqrt(num_animals_stim_psth_good_RT_sequence);
+
+%% plot good RT sequence
+curr_color = 'k';
+for cluster_idx=1:num_clusters
+    figure;
+    tiledlayout('flow');
+    for day_idx=1:length(psth_unique_days_from_learning)
+        this_day = psth_unique_days_from_learning(day_idx);
+        this_day_idx = psth_unique_avg_animal_group_good_RT_sequence_indices(:,2) == this_day;
+        this_cluster_idx =  psth_unique_avg_animal_group_good_RT_sequence_indices(:,3) == cluster_idx;
+        if sum(this_day_idx & this_cluster_idx) == 0
+            continue
+        end
+        for_plot_mean_max_ampl = psth_good_RT_sequence_mean_max_ampl(this_day_idx & this_cluster_idx);
+        for_plot_sem_max_ampl = psth_good_RT_sequence_sem_max_ampl(this_day_idx & this_cluster_idx);
+        for_plot_seq_length = psth_unique_avg_animal_group_good_RT_sequence_indices(this_day_idx & this_cluster_idx, 1);
+        
+        nexttile;
+%         plot(for_plot_mean_RT, for_plot_mean_max_ampl);
+
+         errorbar(for_plot_seq_length, for_plot_mean_max_ampl, for_plot_sem_max_ampl, 'o', 'CapSize', 0, ...
+        'MarkerFaceColor', curr_color, 'MarkerEdgeColor', curr_color, 'Color', curr_color);
+         ylim([0 15]);
+%         hold on;
+%         xline(for_plot_mean_RT)
+        yline(0)
+        ylabel('Max ampl of str response')
+        xlabel('Seq length in group')
+        title(['Day ' num2str(psth_unique_days_from_learning(day_idx))])
+        colororder(gca, my_colormap);
+    end
+    sgtitle(['Str response vs seq length for Cluster ' num2str(cluster_idx)])
+end
+
+%% try swarm plot
+curr_color = 'k';
+gray_color = [0.7 0.7 0.7]; 
+
+for cluster_idx=1:num_clusters
+    figure;
+    tiledlayout('flow');
+    for day_idx=1:length(psth_unique_days_from_learning)
+        this_day = psth_unique_days_from_learning(day_idx);
+        this_day_idx = psth_unique_avg_animal_group_good_RT_sequence_indices(:,2) == this_day;
+        this_cluster_idx =  psth_unique_avg_animal_group_good_RT_sequence_indices(:,3) == cluster_idx;
+        if sum(this_day_idx & this_cluster_idx) == 0
+            continue
+        end
+        for_plot_mean_max_ampl = psth_good_RT_sequence_mean_max_ampl(this_day_idx & this_cluster_idx);
+        for_plot_sem_max_ampl = psth_good_RT_sequence_sem_max_ampl(this_day_idx & this_cluster_idx);
+        for_plot_seq_length = psth_unique_avg_animal_group_good_RT_sequence_indices(this_day_idx & this_cluster_idx, 1);
+         
+
+        for_swarm_idx = psth_unique_good_RT_sequence_indices(:,3) == this_day & ...
+                psth_unique_good_RT_sequence_indices(:,4) == cluster_idx;
+        individual_data = psth_all_grouped_good_RT_sequence_max_ampl(for_swarm_idx);
+        individual_seq_lengths = psth_unique_good_RT_sequence_indices(for_swarm_idx, 2); 
+
+        nexttile;
+        swarmchart(individual_seq_lengths, individual_data, ...
+                   20, gray_color, 'filled', 'MarkerFaceAlpha', 0.5);
+        hold on;
+        errorbar(for_plot_seq_length, for_plot_mean_max_ampl, for_plot_sem_max_ampl, 'o', 'CapSize', 0, ...
+        'MarkerFaceColor', curr_color, 'MarkerEdgeColor', curr_color, 'Color', curr_color);
+         ylim([0 15]);
+%         hold on;
+%         xline(for_plot_mean_RT)
+        yline(0)
+        ylabel('Max ampl of str response')
+        xlabel('Seq length in group')
+        title(['Day ' num2str(psth_unique_days_from_learning(day_idx))])
+    end
+    sgtitle(['Str response vs seq length for Cluster ' num2str(cluster_idx)])
+end
+
+%% cumulative
+good_RT_range = [0.01, 1];
+good_RT_binary_cell = cell(size(all_RT));
+good_RT_cumulative_lengths_cell = cell(size(all_RT)); 
+for rec_idx = 1:num_recordings
+    RT_values = all_RT{rec_idx};
+
+    good_RT_trials = (RT_values >= good_RT_range(1) & RT_values <= good_RT_range(2));
+    good_RT_binary_cell{rec_idx} = double(good_RT_trials);
+
+    good_RT_cumulative_lengths = zeros(size(good_RT_binary_cell{rec_idx}));
+    good_RT_cumulative_lengths(good_RT_trials) = cumsum(good_RT_binary_cell{rec_idx}(good_RT_trials));
+    good_RT_cumulative_lengths_cell{rec_idx} = good_RT_cumulative_lengths;
+end
+for_psth_good_RT_cumulative_lengths_cell = arrayfun(@(rec_idx) ...
+    repmat(good_RT_cumulative_lengths_cell{rec_idx}', 1,  psth_num_clusters(rec_idx))', ...
+    1:num_recordings, 'UniformOutput', false);
+for_psth_good_RT_cumulative_lengths = vertcat(for_psth_good_RT_cumulative_lengths_cell{:});
+
+%% - avg across animals in cumulative RT trial sequences groups
+[avg_psth_grouped_good_RT_cumulative_smooth_norm,psth_unique_avg_animal_group_good_RT_cumulative_indices] = ...
+    ap.nestgroupfun({@mean, @mean},cat_smooth_norm_stim_psths, ...
+    for_psth_animal_ids, ...
+    [for_psth_good_RT_cumulative_lengths, for_psth_days_from_learning, for_psth_cluster_ids]);
+num_animals_stim_psth_good_RT_cumulative = ...
+    mean(ap.nestgroupfun({@mean, @length},cat_smooth_norm_stim_psths, ...
+    for_psth_animal_ids, ...
+    [for_psth_good_RT_cumulative_lengths, for_psth_days_from_learning, for_psth_cluster_ids]), ...
+    2);
+
+%% get max ampl for cumulative good sequence
+% group by ld and split trial
+psth_good_RT_cumulative_mean_max_ampl = ap.nestgroupfun({@mean, @mean},psth_all_trial_split_max_ampl, ...
+    for_psth_animal_ids, ...
+    [for_psth_good_RT_cumulative_lengths, for_psth_days_from_learning, for_psth_cluster_ids]);
+
+% do sem for errorbar
+psth_good_RT_cumulative_std_max_ampl = ap.nestgroupfun({@mean, @nanstd},psth_all_trial_split_max_ampl, ...
+    for_psth_animal_ids, ...
+    [for_psth_good_RT_cumulative_lengths, for_psth_days_from_learning, for_psth_cluster_ids]);
+psth_good_RT_cumulative_sem_max_ampl = psth_good_RT_cumulative_std_max_ampl ./ sqrt(num_animals_stim_psth_good_RT_cumulative);
+
+%% plot cumulative
+for cluster_idx=1:num_clusters
+    figure;
+    tiledlayout('flow');
+    for day_idx=1:length(psth_unique_days_from_learning)
+        this_day = psth_unique_days_from_learning(day_idx);
+        this_day_idx = psth_unique_avg_animal_group_good_RT_cumulative_indices(:,2) == this_day;
+        this_cluster_idx =  psth_unique_avg_animal_group_good_RT_cumulative_indices(:,3) == cluster_idx;
+        if sum(this_day_idx & this_cluster_idx) == 0
+            continue
+        end
+        for_plot_mean_max_ampl = psth_good_RT_cumulative_mean_max_ampl(this_day_idx & this_cluster_idx);
+        for_plot_sem_max_ampl = psth_good_RT_cumulative_sem_max_ampl(this_day_idx & this_cluster_idx);
+        for_plot_seq_length = psth_unique_avg_animal_group_good_RT_cumulative_indices(this_day_idx & this_cluster_idx, 1);
+        
+        nexttile;
+%         plot(for_plot_mean_RT, for_plot_mean_max_ampl);
+
+         errorbar(for_plot_seq_length, for_plot_mean_max_ampl, for_plot_sem_max_ampl, 'o', 'CapSize', 0, ...
+        'MarkerFaceColor', curr_color, 'MarkerEdgeColor', curr_color, 'Color', curr_color);
+       ylim([0 25]);
+%         hold on;
+%         xline(for_plot_mean_RT)
+        yline(0)
+        ylabel('Max ampl of str response')
+        xlabel('Seq length in group')
+        title(['Day ' num2str(psth_unique_days_from_learning(day_idx))])
+        colororder(gca, my_colormap);
+    end
+    sgtitle(['Str response vs cumulative for Cluster ' num2str(cluster_idx)])
+end
+
+%% trials back
+num_trials_back = 10;
+good_RT_range = [0.01, 1];
+good_RT_trials_back_lengths_cell = cell(size(all_RT)); 
+for rec_idx = 1:num_recordings
+    RT_values = all_RT{rec_idx};
+
+    good_RT_trials = (RT_values >= good_RT_range(1) & RT_values <= good_RT_range(2));
+    good_RT_binary_cell{rec_idx} = double(good_RT_trials);
+
+    good_RT_trials_back_lengths = nan(size(good_RT_binary_cell{rec_idx}));
+    for i=1:length(good_RT_binary_cell{rec_idx})
+        if i<=num_trials_back
+%             good_RT_trials_back_lengths(i) = sum(good_RT_binary_cell{rec_idx}(1:i-1));
+            continue;
+        elseif good_RT_binary_cell{rec_idx}(i) == 1
+            good_RT_trials_back_lengths(i) = sum(good_RT_binary_cell{rec_idx}(i-num_trials_back:i-1));
+        end
+    end
+
+    good_RT_trials_back_lengths_cell{rec_idx} = good_RT_trials_back_lengths;
+end
+for_psth_good_RT_trials_back_lengths_cell = arrayfun(@(rec_idx) ...
+    repmat(good_RT_trials_back_lengths_cell{rec_idx}', 1, psth_num_clusters(rec_idx))', ...
+    1:num_recordings, 'UniformOutput', false);
+for_psth_good_RT_trials_back_lengths = vertcat(for_psth_good_RT_trials_back_lengths_cell{:});
+
+%% - avg across animals in trials_back RT trial sequences groups
+[avg_psth_grouped_good_RT_trials_back_smooth_norm,psth_unique_avg_animal_group_good_RT_trials_back_indices] = ...
+    ap.nestgroupfun({@mean, @mean},cat_smooth_norm_stim_psths, ...
+    for_psth_animal_ids, ...
+    [for_psth_good_RT_trials_back_lengths, for_psth_days_from_learning, for_psth_cluster_ids]);
+num_animals_stim_psth_good_RT_trials_back = ...
+    mean(ap.nestgroupfun({@mean, @length},cat_smooth_norm_stim_psths, ...
+    for_psth_animal_ids, ...
+    [for_psth_good_RT_trials_back_lengths, for_psth_days_from_learning, for_psth_cluster_ids]), ...
+    2);
+
+%% get max ampl for trials_back good sequence
+% group by ld and split trial
+psth_good_RT_trials_back_mean_max_ampl = ap.nestgroupfun({@mean, @mean},psth_all_trial_split_max_ampl, ...
+    for_psth_animal_ids, ...
+    [for_psth_good_RT_trials_back_lengths, for_psth_days_from_learning, for_psth_cluster_ids]);
+
+% do sem for errorbar
+psth_good_RT_trials_back_std_max_ampl = ap.nestgroupfun({@mean, @nanstd},psth_all_trial_split_max_ampl, ...
+    for_psth_animal_ids, ...
+    [for_psth_good_RT_trials_back_lengths, for_psth_days_from_learning, for_psth_cluster_ids]);
+psth_good_RT_trials_back_sem_max_ampl = psth_good_RT_trials_back_std_max_ampl ./ sqrt(num_animals_stim_psth_good_RT_trials_back);
+
+%% - plot trials_back
+for cluster_idx=1:num_clusters
+    figure;
+    tiledlayout('flow');
+    for day_idx=1:length(psth_unique_days_from_learning)
+        this_day = psth_unique_days_from_learning(day_idx);
+        this_day_idx = psth_unique_avg_animal_group_good_RT_trials_back_indices(:,2) == this_day;
+        this_cluster_idx =  psth_unique_avg_animal_group_good_RT_trials_back_indices(:,3) == cluster_idx;
+        if sum(this_day_idx & this_cluster_idx) == 0
+            continue
+        end
+        for_plot_mean_max_ampl = psth_good_RT_trials_back_mean_max_ampl(this_day_idx & this_cluster_idx);
+        for_plot_sem_max_ampl = psth_good_RT_trials_back_sem_max_ampl(this_day_idx & this_cluster_idx);
+        for_plot_seq_length = psth_unique_avg_animal_group_good_RT_trials_back_indices(this_day_idx & this_cluster_idx, 1);
+        
+        nexttile;
+%         plot(for_plot_mean_RT, for_plot_mean_max_ampl);
+
+         errorbar(for_plot_seq_length, for_plot_mean_max_ampl, for_plot_sem_max_ampl, 'o', 'CapSize', 0, ...
+        'MarkerFaceColor', curr_color, 'MarkerEdgeColor', curr_color, 'Color', curr_color);
+       ylim([0 25]);
+%         hold on;
+%         xline(for_plot_mean_RT)
+        yline(0)
+        ylabel('Max ampl of str response')
+        xlabel('Seq length in group')
+        title(['Day ' num2str(psth_unique_days_from_learning(day_idx))])
+        colororder(gca, my_colormap);
+    end
+    sgtitle(['Str response vs trials back for Cluster ' num2str(cluster_idx)])
+end

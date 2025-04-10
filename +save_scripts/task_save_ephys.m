@@ -39,6 +39,43 @@ for animal_idx=1:length(animals)
         load_parts.ephys = true;
         ap.load_recording
 
+        %% Get ITI fast movement times
+
+        wheel_starts = timelite.timestamps(diff([0;wheel_move]) == 1);
+        wheel_stops = timelite.timestamps(diff([0;wheel_move]) == -1);
+
+        wheel_move_maxvel = arrayfun(@(x) ...
+            max(abs(wheel_velocity(timelite.timestamps >= wheel_starts(x) & ...
+            timelite.timestamps <= wheel_stops(x)))),1:length(wheel_starts));
+        wheel_move_tduration = wheel_stops - wheel_starts;
+
+        iti_move_idx = interp1(photodiode_times, ...
+            photodiode_values,wheel_starts,'previous') == 0;
+
+        % (hardcoding threshold for now)
+        wheel_thresh = -round((1024/360)/3*90);
+
+        % (get time to cross threshold, if any)
+        wheel_thresh_t = nan(length(wheel_starts),1);
+        for curr_move = 1:length(wheel_starts)
+            curr_position_abs = ...
+                wheel_position(timelite.timestamps >= wheel_starts(curr_move) & ...
+                timelite.timestamps <= wheel_stops(curr_move));
+            curr_position_rel = curr_position_abs-curr_position_abs(1);
+            curr_thresh_cross_t = find(curr_position_rel < ...
+                wheel_thresh,1)./timelite.daq_info(1).rate;
+            if ~isempty(curr_thresh_cross_t)
+                wheel_thresh_t(curr_move) = curr_thresh_cross_t;
+            end
+        end
+
+        iti_fastmove_idx = iti_move_idx & wheel_thresh_t <= 0.3;
+        iti_fastmove_times = wheel_starts(iti_fastmove_idx);
+
+        iti_fastmove_maxvel = wheel_move_maxvel(iti_fastmove_idx);
+        iti_fastmove_tduration = wheel_move_tduration(iti_fastmove_idx);
+
+
         %% Get striatum boundaries - Just skip missing depth ones
 
         AP_longstriatum_find_striatum_depth
@@ -71,6 +108,29 @@ for animal_idx=1:length(animals)
         [~,binned_spikes_stim_align] = ap.psth(spike_times_timelite, ...
             stimOn_times(1:n_trials),  ...
             depth_group);
+
+        [~,binned_spikes_move_align] = ap.psth(spike_times_timelite, ...
+            stim_move_time(1:n_trials),  ...
+            depth_group);
+
+        [~,binned_spikes_itimove_align] = ap.psth(spike_times_timelite, ...
+            iti_fastmove_times,  ...
+            depth_group);
+
+        %% MSN psth
+        msn_spikes = ismember(spike_templates, find(str_msn_idx));
+
+        [~,binned_msn_spikes_stim_align] = ap.psth(spike_times_timelite(msn_spikes), ...
+            stimOn_times(1:n_trials),  ...
+            depth_group(msn_spikes));
+
+        [~,binned_msn_spikes_move_align] = ap.psth(spike_times_timelite(msn_spikes), ...
+            stim_move_time(1:n_trials),  ...
+            depth_group(msn_spikes));
+
+        [~,binned_msn_spikes_itimove_align] = ap.psth(spike_times_timelite(msn_spikes), ...
+            iti_fastmove_times,  ...
+            depth_group(msn_spikes));
 
         %% EDIT: unit responsivenes
         %% -- contra stim
@@ -203,6 +263,12 @@ for animal_idx=1:length(animals)
         task_ephys_animal.unit_depth_group(use_rec) = {unit_depth_group};
 
         task_ephys_animal.binned_spikes_stim_align(use_rec) = {binned_spikes_stim_align};
+        task_ephys_animal.binned_spikes_move_align(use_rec) = {binned_spikes_move_align};
+        task_ephys_animal.binned_spikes_itimove_align(use_rec) = {binned_spikes_itimove_align};
+
+        task_ephys_animal.binned_msn_spikes_stim_align(use_rec) = {binned_msn_spikes_stim_align};
+        task_ephys_animal.binned_msn_spikes_move_align(use_rec) = {binned_msn_spikes_move_align};
+        task_ephys_animal.binned_msn_spikes_itimove_align(use_rec) = {binned_msn_spikes_itimove_align};
 
         task_ephys_animal.bin_window_for_pre(use_rec) = {bin_window_for_pre};
         task_ephys_animal.bin_window_for_post(use_rec) = {bin_window_for_post};
@@ -212,13 +278,16 @@ for animal_idx=1:length(animals)
         task_ephys_animal.mean_post_stim(use_rec) = {mean_post_stim};
         task_ephys_animal.std_post_stim(use_rec) = {std_post_stim};
 
-        task_ephys_animal.unit_smooth_event_psths(use_rec) = {smooth_event_psths}; 
+        task_ephys_animal.unit_event_psths(use_rec) = {event_psths}; 
 
         task_ephys_animal.single_unit_idx(use_rec) = {single_unit_idx}; 
 
         task_ephys_animal.str_tan_idx(use_rec) = {str_tan_idx}; 
         task_ephys_animal.str_fsi_idx(use_rec) = {str_fsi_idx}; 
         task_ephys_animal.str_msn_idx(use_rec) = {str_msn_idx}; 
+
+        task_ephys_animal.iti_fastmove_maxvel(use_rec) = {iti_fastmove_maxvel};
+        task_ephys_animal.iti_fastmove_tduration(use_rec) = {iti_fastmove_tduration};
 
         disp(['Done day ' num2str(use_rec)])
 

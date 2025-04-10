@@ -92,6 +92,12 @@ for animal_idx=1:length(animals)
             stimOn_times (no_move_trials),  ...
             depth_group);
 
+        %% MSN psth
+        msn_spikes = ismember(spike_templates, find(str_msn_idx));
+        [~,binned_msn_spikes_stim_align] = ap.psth(spike_times_timelite(msn_spikes), ...
+            stimOn_times(no_move_trials),  ...
+            depth_group(msn_spikes));
+
         %% EDIT: unit responsivenes
         %% -- contra stim
         % sharp
@@ -236,6 +242,8 @@ for animal_idx=1:length(animals)
 %         ephys_animal.bin_centres(use_rec) = {bin_centres};
 
         ephys_animal.binned_spikes_stim_align(use_rec) = {binned_spikes_stim_align};
+
+        ephys_animal.binned_msn_spikes_stim_align(use_rec) = {binned_msn_spikes_stim_align};
 
         ephys_animal.bin_window_for_pre(use_rec) = {bin_window_for_pre};
         ephys_animal.bin_window_for_post(use_rec) = {bin_window_for_post};

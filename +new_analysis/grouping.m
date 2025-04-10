@@ -127,8 +127,9 @@ weighted_avg_stim_baseline = sum(weighted_sum_stim_baseline, 1) ./ sum(total_num
 
 %% - norm smooth psths
 gauss_win = gausswin(51, 3)';
+softnorm = 10;
 normalize_and_smooth = @(psth, rep) ...
-    filter(gauss_win, sum(gauss_win), (psth - weighted_avg_stim_baseline(rep)) ./ (weighted_avg_stim_baseline(rep)), [], 1);
+    filter(gauss_win, sum(gauss_win), (psth - weighted_avg_stim_baseline(rep)) ./ (weighted_avg_stim_baseline(rep)+softnorm), [], 1);
 
 all_smooth_stim_psths = cell(numel(unique_stims), 1);
 for stim_idx=1:numel(unique_stims)
@@ -177,7 +178,7 @@ days_for_plot = -3:2;
 all_colormap = ap.colormap('BKR', 2*max(abs(days_for_plot))+1);
 colormap_days = -max(abs(days_for_plot)):max(abs(days_for_plot));
 
-for cluster_id =1:length(unique_cluster_ids)
+for cluster_id =1:num_clusters
 
     this_cluster_psth_idx = unique_avg_animal_group_indices(:,1) == cluster_id;
     these_days_from_learning = unique_avg_animal_group_indices(this_cluster_psth_idx, 2);
@@ -231,7 +232,7 @@ days_for_plot = -3:2;
 all_colormap = ap.colormap('BKR', 2*max(abs(days_for_plot))+1);
 colormap_days = -max(abs(days_for_plot)):max(abs(days_for_plot));
 
-for cluster_id =1:length(unique_cluster_ids)
+for cluster_id =1:num_clusters
 
     this_cluster_psth_idx = unique_avg_animal_group_indices(:,1) == cluster_id;
     these_days_from_learning = unique_avg_animal_group_indices(this_cluster_psth_idx, 2);
@@ -357,7 +358,7 @@ for cluster_id = 1:num_clusters
     nexttile;
     errorbar(plotted_days, for_plot_max_mean(:, plot_day_idx), for_plot_max_sem(:, plot_day_idx), '-o', 'CapSize', 0, ...
         'MarkerFaceColor', curr_color, 'MarkerEdgeColor', curr_color, 'Color', curr_color);
-    ylim([0 12])
+    ylim([0 8])
     title(['Cluster ' num2str(cluster_id)])
 
 end

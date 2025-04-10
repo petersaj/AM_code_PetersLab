@@ -14,6 +14,8 @@ load(ctx_str_maps_data_path)
 master_U_fn = fullfile(save_path,'U_master.mat');
 load(master_U_fn, 'U_master');
 
+load(fullfile(save_path, "all_ROIs.mat"));
+
 %% kmeans ids
 
 % get number of things from total MUA - after re-run save script
@@ -97,22 +99,22 @@ per_rec_psth_cluster_ids = mat2cell(cluster_ids, n_depths);
 
 [grouped_cluster_stim_psths, cluster_groups] = ...
     cellfun(@(spikes,cluster_id) ap.groupfun(@sum,spikes,[],[],cluster_id), ....
-    task_ephys.binned_spikes_stim_align,per_rec_cluster_ids,'uni',false);
+    task_ephys.binned_spikes_stim_align,per_rec_psth_cluster_ids,'uni',false);
 psth_num_clusters = cellfun(@(x) length(x), cluster_groups); 
 
 psth_stim_time = -0.5:0.001:1;
-baseline_idx = psth_stim_time >= -0.3 & psth_stim_time <= 0;
+baseline_idx = psth_stim_time >= -0.5 & psth_stim_time <= -0.2;
 softnorm = 10;
 gauss_win = gausswin(51, 3)';
-cluster_stim_baseline = cellfun(@(psth) squeeze(mean(mean(psth(:,baseline_idx,:), 2), 1)), ...
+cluster_stim_baseline = cellfun(@(psth) mean(psth(:,baseline_idx,:),[1,2]), ...
     grouped_cluster_stim_psths, 'UniformOutput', false, ...
     'ErrorHandler', @(x, varargin) []);
 grouped_cluster_norm_stim_psths = arrayfun(@(rec_idx) ...
     (grouped_cluster_stim_psths{rec_idx} - ...
-    repmat(permute(cluster_stim_baseline{rec_idx}, [3, 2, 1]), psth_num_trials(rec_idx), length(psth_stim_time), 1)) ...
-    ./ (repmat(permute(cluster_stim_baseline{rec_idx}, [3, 2, 1]), psth_num_trials(rec_idx), length(psth_stim_time), 1) + softnorm), ...
+    cluster_stim_baseline{rec_idx}) ./ (cluster_stim_baseline{rec_idx} + softnorm), ...
     1:num_recordings, ...
     'UniformOutput', false)';
+
 grouped_cluster_smooth_norm_stim_psths = cellfun(@(psth) ...
     filter(gauss_win, sum(gauss_win), psth, [], 2), ...
     grouped_cluster_norm_stim_psths, ...
@@ -269,6 +271,26 @@ end
 psth_window_for_max = psth_stim_time>0 & psth_stim_time<0.3;
 psth_all_trial_split_max_ampl = max(cat_smooth_norm_stim_psths(:, psth_window_for_max), [], 2);
 
+%%%% AP DEMO
+
+[psth_trial_split_recmean_ampl,psth_trial_split_recmean_ampl_group] = ...
+    ap.nestgroupfun({@mean, @mean},cat_smooth_norm_stim_psths, ...
+    (1:size(cat_smooth_norm_stim_psths,1))', ...
+    [for_psth_animal_ids,for_psth_split_trial_ids, for_psth_combined_days_from_learning, for_psth_cluster_ids]);
+
+psth_trial_split_recmean_ampl_max = max(psth_trial_split_recmean_ampl(:, psth_window_for_max), [], 2);
+
+psth_trial_split_mean_max_ampl = ap.nestgroupfun({@mean, @mean},psth_trial_split_recmean_ampl_max, ...
+    psth_trial_split_recmean_ampl_group(:,1), ...
+    psth_trial_split_recmean_ampl_group(:,2:end));
+
+psth_trial_split_sem_max_ampl = ap.nestgroupfun({@mean, @AP_sem},psth_trial_split_recmean_ampl_max, ...
+    psth_trial_split_recmean_ampl_group(:,1), ...
+    psth_trial_split_recmean_ampl_group(:,2:end));
+
+
+%%%%
+
 % group by ld and split trial
 psth_trial_split_mean_max_ampl = ap.nestgroupfun({@mean, @mean},psth_all_trial_split_max_ampl, ...
     for_psth_animal_ids, ...
@@ -410,9 +432,11 @@ for cluster_idx=1:num_clusters
     sgtitle(['RT sort split Cluster ' num2str(cluster_idx)])
 end
 
-%% get max ampl for RT sort split
+%% get max ampl
 psth_window_for_max = psth_stim_time>0 & psth_stim_time<0.3;
 psth_all_trial_split_max_ampl = max(cat_smooth_norm_stim_psths(:, psth_window_for_max), [], 2);
+
+%% get max ampl for RT sort split
 
 % group by ld and split trial
 psth_sort_RT_trial_split_mean_max_ampl = ap.nestgroupfun({@mean, @mean},psth_all_trial_split_max_ampl, ...
@@ -556,18 +580,39 @@ end
 
 %% get max ampl for RT bin split
 psth_window_for_max = psth_stim_time>0 & psth_stim_time<0.3;
-psth_all_trial_split_max_ampl = max(cat_smooth_norm_stim_psths(:, psth_window_for_max), [], 2);
+% psth_all_trial_split_max_ampl = max(cat_smooth_norm_stim_psths(:, psth_window_for_max), [], 2);
 
-% group by ld and split trial
-psth_bin_RT_trial_split_mean_max_ampl = ap.nestgroupfun({@mean, @mean},psth_all_trial_split_max_ampl, ...
-    for_psth_animal_ids, ...
-    [for_psth_bin_RT_split_trial_ids, for_psth_combined_days_from_learning, for_psth_cluster_ids]);
 
-% do sem for errorbar
-psth_bin_RT_trial_split_std_max_ampl = ap.nestgroupfun({@mean, @nanstd},psth_all_trial_split_max_ampl, ...
-    for_psth_animal_ids, ...
-    [for_psth_bin_RT_split_trial_ids, for_psth_combined_days_from_learning, for_psth_cluster_ids]);
-psth_bin_RT_trial_split_sem_max_ampl = psth_bin_RT_trial_split_std_max_ampl ./ sqrt(num_animals_stim_psth_bin_RT_split);
+%%%% AP DEMO
+
+[psth_trial_split_recmean_ampl,psth_trial_split_recmean_ampl_group] = ...
+    ap.nestgroupfun({@mean, @mean},cat_smooth_norm_stim_psths, ...
+    (1:size(cat_smooth_norm_stim_psths,1))', ...
+    [for_psth_animal_ids,for_psth_bin_RT_split_trial_ids, for_psth_combined_days_from_learning, for_psth_cluster_ids]);
+
+psth_trial_split_recmean_ampl_max = max(psth_trial_split_recmean_ampl(:, psth_window_for_max), [], 2);
+
+psth_bin_RT_trial_split_mean_max_ampl = ap.nestgroupfun({@mean, @mean},psth_trial_split_recmean_ampl_max, ...
+    psth_trial_split_recmean_ampl_group(:,1), ...
+    psth_trial_split_recmean_ampl_group(:,2:end));
+
+psth_bin_RT_trial_split_sem_max_ampl = ap.nestgroupfun({@mean, @AP_sem},psth_trial_split_recmean_ampl_max, ...
+    psth_trial_split_recmean_ampl_group(:,1), ...
+    psth_trial_split_recmean_ampl_group(:,2:end));
+
+
+%%%%
+
+% % group by ld and split trial
+% psth_bin_RT_trial_split_mean_max_ampl = ap.nestgroupfun({@mean, @mean},psth_all_trial_split_max_ampl, ...
+%     for_psth_animal_ids, ...
+%     [for_psth_bin_RT_split_trial_ids, for_psth_combined_days_from_learning, for_psth_cluster_ids]);
+% 
+% % do sem for errorbar
+% psth_bin_RT_trial_split_std_max_ampl = ap.nestgroupfun({@mean, @nanstd},psth_all_trial_split_max_ampl, ...
+%     for_psth_animal_ids, ...
+%     [for_psth_bin_RT_split_trial_ids, for_psth_combined_days_from_learning, for_psth_cluster_ids]);
+% psth_bin_RT_trial_split_sem_max_ampl = psth_bin_RT_trial_split_std_max_ampl ./ sqrt(num_animals_stim_psth_bin_RT_split);
 
 %% plot max ampl
 
@@ -641,7 +686,7 @@ for cluster_idx = 1:num_clusters
     xticks(valid_xticks{cluster_idx}); % Only set valid x-ticks
     xticklabels(valid_xticklabels{cluster_idx}); % Remove NaN labels
     xtickangle(45); % Rotate for better visibility
-    ylim([0 8])
+    ylim([0 6])
     title('PSTH max amplitude mean')
     sgtitle(['RT bin split Cluster ' num2str(cluster_idx)]);
 end
@@ -777,7 +822,7 @@ for cluster_idx=1:num_clusters
         individual_seq_lengths = psth_unique_combined_good_RT_sequence_indices(for_swarm_idx, 2); 
         
         nexttile;
-        swarmchart(individual_seq_lengths, test, ...
+        swarmchart(individual_seq_lengths, individual_data, ...
                    20, gray_color, 'filled', 'MarkerFaceAlpha', 0.5);
         hold on;
         errorbar(for_plot_seq_length, for_plot_mean_max_ampl, for_plot_sem_max_ampl, 'o', 'CapSize', 0, ...
@@ -1002,4 +1047,671 @@ for cluster_idx=1:num_clusters
         colororder(gca, my_colormap);
     end
     sgtitle(['Str response vs trials back for Cluster ' num2str(cluster_idx)])
+end
+
+
+%% WF
+%% random
+num_recordings = height(wf);
+wf_stim_time = wf.wf_stim_time{1};
+
+%% make kernels into ROIs
+kernel_ROIs = cell(num_clusters, 1);
+for cluster_idx=1:num_clusters
+    kernel_ROIs{cluster_idx} = mat2gray(max(squeeze(centroid_images(cluster_idx,:,:)),0));
+end
+
+%% plot kernel ROIs
+for cluster_idx=1:num_clusters
+    figure;
+    imagesc(kernel_ROIs{cluster_idx})
+    axis image;
+    axis off;
+    clim(max(abs(clim)).*[-1,1]*0.7);
+    ap.wf_draw('ccf','k');
+    colormap(ap.colormap('PWG'));
+    title(['ROI for Cluster ', num2str(cluster_idx)]);
+end
+
+%% plot kernel ROIs and make new ones
+% manual_kernel_ROIs = cell(num_clusters, 1);
+% for cluster_idx=1:num_clusters
+%     figure;
+%     imagesc(kernel_ROIs{cluster_idx})
+%     axis image;
+%     axis off;
+%     clim(max(abs(clim)).*[-1,1]*0.7);
+%     ap.wf_draw('ccf','k');
+%     colormap(ap.colormap('PWG'));
+%     roi_poly = drawpolygon;
+%     manual_kernel_ROIs{cluster_idx} = createMask(roi_poly);
+%     title(['ROI for Cluster ', num2str(cluster_idx)]);
+% end
+% save('D:\matlab_save\all_ROIs', "manual_kernel_ROIs", "-v7.3");
+
+%% plot manual ones
+for cluster_idx=1:num_clusters
+    figure;
+    imagesc(manual_kernel_ROIs{cluster_idx})
+    axis image;
+    axis off;
+    clim(max(abs(clim)).*[-1,1]*0.7);
+    ap.wf_draw('ccf','k');
+    colormap(ap.colormap('PWG'));
+    title(['ROI for Cluster ', num2str(cluster_idx)]);
+end
+
+%% Get avg Vs and baseline subtract
+all_V_stim_align = vertcat(wf.V_stim_align{:});
+
+% get baseline
+baseline_idx = wf_stim_time > -0.2 & wf_stim_time < 0;
+for_V_stim_baseline = mean(all_V_stim_align(:, baseline_idx, :), 2);
+
+all_norm_V_stim_align = all_V_stim_align - for_V_stim_baseline;
+
+%% group Vs
+wf_num_trials = arrayfun(@(rec_idx) ...
+    size(wf.V_stim_align{rec_idx}, 1) * ~isempty(wf.V_stim_align{rec_idx}), ...
+    1:num_recordings);
+
+% get days from learning and animal id
+for_wf_days_from_learning = repelem(bhv.days_from_learning, wf_num_trials);
+[~, ~, for_wf_animal_ids] = unique(repelem(bhv.animal, wf_num_trials));
+
+% get trial ids per day
+for_wf_trial_ids_cell = arrayfun(@(rec_idx) 1:wf_num_trials(rec_idx), ...
+    1:num_recordings, 'uni', false);
+for_wf_trial_ids = horzcat(for_wf_trial_ids_cell{:})';
+
+% use days
+wf_use_days = ~isnan(for_wf_days_from_learning);
+wf_unique_days_from_learning = unique(for_wf_days_from_learning(wf_use_days));
+
+% wf_group_indices = [for_wf_days_from_learning(wf_use_days), for_wf_animal_ids(wf_use_days), for_wf_trial_ids(wf_use_days)];
+% [wf_unique_day_group_indices, ~, wf_day_group_clusters_indices] = unique(wf_group_indices, 'rows');
+
+% Vs
+good_all_norm_V_stim_align = all_norm_V_stim_align(wf_use_days, :, :);
+% temp_all_norm_V_stim_align = good_all_norm_V_stim_align(wf_day_group_clusters_indices, :, :);
+reshape_temp_all_norm_V_stim_align = permute(good_all_norm_V_stim_align, [3 2 1]);
+
+%% get manual kernel ROI
+all_norm_stim_manual_kernel_roi = cell(num_clusters, 1);
+for cluster_idx=1:num_clusters
+    this_ROI = manual_kernel_ROIs{cluster_idx};
+    all_norm_stim_manual_kernel_roi{cluster_idx} = squeeze(ap.wf_roi(U_master,reshape_temp_all_norm_V_stim_align, [], [], this_ROI));
+end
+
+%% package in day
+grouped_stim_manual_kernel_roi = cell(length(wf_unique_days_from_learning), num_clusters);
+for day_idx=1:length(wf_unique_days_from_learning)
+    this_day = wf_unique_days_from_learning(day_idx);
+    this_day_idx = for_wf_days_from_learning(wf_use_days) == this_day;
+    for cluster_idx=1:num_clusters
+        grouped_stim_manual_kernel_roi{day_idx, cluster_idx} = all_norm_stim_manual_kernel_roi{cluster_idx}(:, this_day_idx);
+    end
+end
+
+%% RT sort
+cat_all_RT = vertcat(bhv.stim_to_move{:});
+for_wf_RT = cat_all_RT(wf_use_days);
+% for_wf_RT = temp_wf_RT(wf_day_group_clusters_indices);
+
+sorted_for_wf_RT_cluster_day = cell(length(wf_unique_days_from_learning), 1);
+for_wf_RT_sort_idx = cell(length(wf_unique_days_from_learning), 1);
+for day_idx=1:length(wf_unique_days_from_learning)
+    this_day = wf_unique_days_from_learning(day_idx);
+    for_wf_RT_cluster_day = for_wf_RT(for_wf_days_from_learning(wf_use_days) == this_day);
+    [sorted_for_wf_RT_cluster_day{day_idx}, for_wf_RT_sort_idx{day_idx}] = sort(for_wf_RT_cluster_day);
+end
+
+% day_idx = find(wf_unique_days_from_learning == 1);
+% figure;
+% plot(sorted_for_wf_RT_cluster_day{day_idx}, 'o')
+% ylim([-0.5 1])
+% title('Processed')
+%
+% % temp
+% temp_RT_test = bhv.stim_to_move(bhv.days_from_learning == 1);
+% figure;
+% plot(sort(vertcat(temp_RT_test{:})), 'o')
+% ylim([-0.5 1])
+% title('Original')
+
+%% plot
+for cluster_idx=1:num_clusters
+    figure;
+    tiledlayout('flow');
+    for day_idx=1:length(wf_unique_days_from_learning)
+        for_plot_manual_kernel_roi = grouped_stim_manual_kernel_roi{day_idx, cluster_idx}(:, for_wf_RT_sort_idx{day_idx});
+        nexttile;
+        imagesc(wf_stim_time,[], for_plot_manual_kernel_roi');
+        clim_val = max(clim);
+        clim([-clim_val, clim_val]);
+        colormap(ap.colormap('PWG'))
+        hold on;
+        plot(sorted_for_wf_RT_cluster_day{day_idx}, 1:size(for_plot_manual_kernel_roi, 2))
+        title(['Day ' num2str(wf_unique_days_from_learning(day_idx))])
+    end
+    sgtitle(['Cluster ' num2str(cluster_idx)])
+end
+
+
+%% - split into 3
+
+%% - split trials into 3
+num_split_trials = 3;
+for_wf_split_trial_ids_cell = arrayfun(@(rec_idx) repelem(1:num_split_trials, ceil(wf_num_trials(rec_idx) / num_split_trials)), ...
+    1:num_recordings, 'UniformOutput', false);
+for_wf_split_trial_ids_cell_trimmed = arrayfun(@(rec_idx) for_wf_split_trial_ids_cell{rec_idx}(1:wf_num_trials(rec_idx)), ...
+    1:num_recordings, 'UniformOutput', false);
+for_wf_split_trial_ids = horzcat(for_wf_split_trial_ids_cell_trimmed{:})';
+
+%% group Vs by split trial and mouse and day
+wf_animal_day_trial_indices = [for_wf_animal_ids(wf_use_days), for_wf_days_from_learning(wf_use_days), for_wf_split_trial_ids(wf_use_days)];
+[wf_unique_all_group_indices, ~, wf_all_group_indices] = unique(wf_animal_day_trial_indices, 'rows');
+
+grouped_norm_stim_Vs = ap.groupfun(@mean, ...
+    reshape_temp_all_norm_V_stim_align, [], [], wf_all_group_indices);
+
+%% group by ld and split trial
+wf_day_trial_indices = [wf_unique_all_group_indices(:, 2), wf_unique_all_group_indices(:, 3)];
+[wf_unique_avg_animal_group_indices, ~, wf_animal_group_clusters_indices] = unique(wf_day_trial_indices, 'rows');
+
+avg_grouped_norm_stim_Vs = ap.groupfun(@mean, ...
+    grouped_norm_stim_Vs, [], [], wf_animal_group_clusters_indices);
+
+%% count animals
+num_animals_stim_wf = accumarray(wf_animal_group_clusters_indices, 1);
+
+%% get ROIs
+all_avg_manual_kernel_roi = cell(num_clusters, 1);
+for cluster_idx=1:num_clusters
+    this_ROI = manual_kernel_ROIs{cluster_idx};
+    all_avg_manual_kernel_roi{cluster_idx} = squeeze(ap.wf_roi(U_master,avg_grouped_norm_stim_Vs, [], [], this_ROI));
+end
+
+
+%% plot ROIs
+my_colormap = ap.colormap('KG', num_split_trials);
+for cluster_idx=1:num_clusters
+    figure;
+    tiledlayout('flow');
+    for day_idx=1:length(wf_unique_days_from_learning)
+        this_day = wf_unique_days_from_learning(day_idx);
+        this_day_idx = wf_unique_avg_animal_group_indices(:,1) == this_day;
+        for_plot_manual_kernel_roi = all_avg_manual_kernel_roi{cluster_idx}(:, this_day_idx);
+
+        nexttile;
+        plot(wf_stim_time, for_plot_manual_kernel_roi);
+        title(['Day ' num2str(wf_unique_days_from_learning(day_idx))])
+        colororder(gca, my_colormap);
+    end
+    sgtitle(['WF ROI for Cluster ' num2str(cluster_idx)])
+end
+
+
+%% get max ampl
+all_grouped_manual_kernel_roi = cell(num_clusters, 1);
+for cluster_idx=1:num_clusters
+    this_ROI = manual_kernel_ROIs{cluster_idx};
+    all_grouped_manual_kernel_roi{cluster_idx} = squeeze(ap.wf_roi(U_master,grouped_norm_stim_Vs, [], [], this_ROI));
+end
+
+wf_window_for_max = wf_stim_time>0 & wf_stim_time<0.3;
+wf_all_grouped_max_ampl = cell(num_clusters, 1);
+for cluster_idx=1:num_clusters
+    wf_all_grouped_max_ampl{cluster_idx} = max(all_grouped_manual_kernel_roi{cluster_idx}(wf_window_for_max, :), [], 1);
+end
+
+% group by ld and split trial
+wf_mean_max_ampl = cell(num_clusters, 1);
+for cluster_idx=1:num_clusters
+    wf_mean_max_ampl{cluster_idx} = ap.groupfun(@mean, ...
+        wf_all_grouped_max_ampl{cluster_idx}, [], wf_animal_group_clusters_indices);
+end
+
+% do sem for errorbar
+wf_std_max_ampl = cell(num_clusters, 1);
+wf_sem_max_ampl = cell(num_clusters, 1);
+for cluster_idx=1:num_clusters
+    wf_std_max_ampl{cluster_idx} = ap.groupfun(@nanstd, ...
+        wf_all_grouped_max_ampl{cluster_idx}, [], wf_animal_group_clusters_indices);
+    wf_sem_max_ampl{cluster_idx} = wf_std_max_ampl{cluster_idx}' ./ sqrt(num_animals_stim_wf);
+end
+
+%% plot max ampl
+
+curr_color = 'k';
+
+plot_day_values = wf_unique_avg_animal_group_indices(:,1); % Extract x values
+unique_plot_day_values = unique(plot_day_values);
+plot_trial_values = wf_unique_avg_animal_group_indices(:,2); % Extract y values
+
+spacing = 2; % Controls gap size between groups
+
+x_positions = cell(num_clusters, 1);
+y_positions= cell(num_clusters, 1);
+x_labels_wf_max = cell(num_clusters, 1);
+error_vals = cell(num_clusters, 1);
+valid_xticks = cell(num_clusters, 1);
+valid_xticklabels = cell(num_clusters, 1);
+for cluster_idx = 1:num_clusters
+    % Initialize variables for each cluster
+    x_positions{cluster_idx} = []; % Reset for each cluster
+    y_positions{cluster_idx} = [];
+    x_labels_wf_max{cluster_idx} = {};
+    error_vals{cluster_idx} = [];
+
+    pos_counter = 1; % Start position counter
+
+    for i = 1:length(unique_plot_day_values)
+        indices = find(plot_day_values == unique_plot_day_values(i));
+        num_points = length(indices);
+
+        % Append the current group of x_positions
+        x_positions{cluster_idx} = [x_positions{cluster_idx}, pos_counter:pos_counter+num_points-1];
+        y_positions{cluster_idx} = [y_positions{cluster_idx}, wf_mean_max_ampl{cluster_idx}(indices)];
+        x_labels_wf_max{cluster_idx} = [x_labels_wf_max{cluster_idx}; arrayfun(@(a, b) sprintf('(%d,%d)', a, b), ...
+            plot_day_values(indices), plot_trial_values(indices), 'UniformOutput', false)];
+        error_vals{cluster_idx} = [error_vals{cluster_idx}, wf_sem_max_ampl{cluster_idx}(indices)'];
+
+        % Insert NaN to break the line before the next group
+        if i < length(unique_plot_day_values)
+            x_positions{cluster_idx} = [x_positions{cluster_idx}, NaN];
+            y_positions{cluster_idx} = [y_positions{cluster_idx}, NaN];
+            error_vals{cluster_idx} = [error_vals{cluster_idx}, NaN];
+            x_labels_wf_max{cluster_idx} = [x_labels_wf_max{cluster_idx}; {''}]; % Add empty label for NaN
+        end
+
+        pos_counter = pos_counter + num_points + spacing; % Add spacing
+
+        valid_xticks{cluster_idx} = x_positions{cluster_idx}(~isnan(x_positions{cluster_idx}));
+        valid_xticklabels{cluster_idx} = x_labels_wf_max{cluster_idx}(~isnan(x_positions{cluster_idx}));
+    end
+end
+
+for cluster_idx = 1:num_clusters
+    % Plot for this cluster
+    figure;
+    tiledlayout('flow');
+
+    nexttile;
+    imagesc(manual_kernel_ROIs{cluster_idx})
+    axis image;
+    axis off;
+    clim(max(abs(clim)).*[-1,1]*0.7);
+    ap.wf_draw('ccf','k');
+    colormap(ap.colormap('PWG'));
+    title(['ROI for Cluster ', num2str(cluster_idx)]);
+
+    nexttile;
+    errorbar(x_positions{cluster_idx}, y_positions{cluster_idx}, error_vals{cluster_idx}, '-o', 'CapSize', 0, ...
+        'MarkerFaceColor', curr_color, 'MarkerEdgeColor', curr_color, 'Color', curr_color);
+    xticks(valid_xticks{cluster_idx}); % Only set valid x-ticks
+    xticklabels(valid_xticklabels{cluster_idx}); % Remove NaN labels
+    xtickangle(45); % Rotate for better visibility
+    title('WF ROI max amplitude mean')
+    sgtitle(['Cluster ' num2str(cluster_idx)]);
+end
+
+
+%% split into 3 by RT sorting
+% get sort idx for RT
+all_RT = vertcat(bhv.stim_to_move);
+num_RT_split_trials = 5;
+for rec_idx=1:num_recordings
+    % (to discretize by RT rank)
+    rank_RT_per_rec = tiedrank(bhv.stim_to_move{rec_idx});
+    for_wf_sort_RT_split_trial_ids_cell{rec_idx} = discretize(rank_RT_per_rec,...
+        round(linspace(1,max(rank_RT_per_rec),num_RT_split_trials+1)))';
+end
+for_wf_sort_RT_split_trial_ids = horzcat(for_wf_sort_RT_split_trial_ids_cell{:})';
+wf_per_rec_sorted_RT = vertcat(all_RT{:});
+
+%% make sort RT split trial indices
+wf_sort_RT_split_trial_group_indices = [for_wf_animal_ids(wf_use_days), ...
+    for_wf_days_from_learning(wf_use_days) , for_wf_sort_RT_split_trial_ids(wf_use_days)];
+[wf_unique_sort_RT_split_trial_indices, ~, wf_sort_RT_split_trial_indices] = unique(wf_sort_RT_split_trial_group_indices, 'rows');
+
+wf_RT_split_trial_RT_mean = ap.groupfun(@mean, ...
+    wf_per_rec_sorted_RT(wf_use_days), wf_sort_RT_split_trial_indices);
+
+grouped_sort_RT_split_trial_norm_stim_Vs = ap.groupfun(@mean, ...
+    reshape_temp_all_norm_V_stim_align, [], [], wf_sort_RT_split_trial_indices);
+
+%% group by ld and split trial
+wf_sort_RT_day_trial_indices = [wf_unique_sort_RT_split_trial_indices(:, 2), wf_unique_sort_RT_split_trial_indices(:, 3)];
+[wf_unique_avg_animal_sort_RT_group_indices, ~, wf_animal_sort_RT_group_clusters_indices] = unique(wf_sort_RT_day_trial_indices, 'rows');
+
+avg_grouped_sort_RT_split_trial_norm_stim_Vs = ap.groupfun(@mean, ...
+    grouped_sort_RT_split_trial_norm_stim_Vs, [], [], wf_animal_sort_RT_group_clusters_indices);
+
+avg_wf_RT_split_trial_RT_mean = ap.groupfun(@mean, ...
+    wf_RT_split_trial_RT_mean, wf_animal_sort_RT_group_clusters_indices);
+
+%% count animals
+num_animals_stim_wf = accumarray(wf_animal_sort_RT_group_clusters_indices, 1);
+
+%% get ROIs
+all_avg_manual_kernel_roi_sort_RT = cell(num_clusters, 1);
+for cluster_idx=1:num_clusters
+    this_ROI = manual_kernel_ROIs{cluster_idx};
+    all_avg_manual_kernel_roi_sort_RT{cluster_idx} = squeeze(ap.wf_roi(U_master,avg_grouped_sort_RT_split_trial_norm_stim_Vs, [], [], this_ROI));
+end
+
+%% plot RT sort split trial ROIs
+my_colormap = ap.colormap('KG', num_RT_split_trials);
+for cluster_idx=1:num_clusters
+    figure;
+    RT_ROIs = tiledlayout('flow');
+    for day_idx=1:length(wf_unique_days_from_learning)
+        this_day = wf_unique_days_from_learning(day_idx);
+        this_day_idx = wf_unique_avg_animal_sort_RT_group_indices(:,1) == this_day;
+        for_plot_manual_kernel_roi_sort_RT = all_avg_manual_kernel_roi_sort_RT{cluster_idx}(:, this_day_idx);
+        for_plot_mean_RT = avg_wf_RT_split_trial_RT_mean(this_day_idx);
+
+        nexttile;
+        plot(wf_stim_time, for_plot_manual_kernel_roi_sort_RT);
+        hold on;
+        xline(for_plot_mean_RT)
+        title(['Day ' num2str(wf_unique_days_from_learning(day_idx))])
+        colororder(gca, my_colormap);
+    end
+    sgtitle(['RT sort split WF ROI for Cluster ' num2str(cluster_idx)])
+    linkaxes(RT_ROIs.Children)
+    xlim([-0.5 1])
+end
+
+%% max ampl
+all_grouped_manual_kernel_roi_sort_RT = cell(num_clusters, 1);
+for cluster_idx=1:num_clusters
+    this_ROI = manual_kernel_ROIs{cluster_idx};
+    all_grouped_manual_kernel_roi_sort_RT{cluster_idx} = squeeze(ap.wf_roi(U_master,grouped_sort_RT_split_trial_norm_stim_Vs, [], [], this_ROI));
+end
+
+wf_window_for_max = wf_stim_time>0 & wf_stim_time<0.3;
+wf_sort_RT_all_grouped_max_ampl = cell(num_clusters, 1);
+for cluster_idx=1:num_clusters
+    wf_sort_RT_all_grouped_max_ampl{cluster_idx} = max(all_grouped_manual_kernel_roi_sort_RT{cluster_idx}(wf_window_for_max, :), [], 1);
+end
+
+% group by ld and split trial
+wf_sort_RT_mean_max_ampl = cell(num_clusters, 1);
+for cluster_idx=1:num_clusters
+    wf_sort_RT_mean_max_ampl{cluster_idx} = ap.groupfun(@mean, ...
+        wf_sort_RT_all_grouped_max_ampl{cluster_idx}, [], wf_animal_sort_RT_group_clusters_indices);
+end
+
+% do sem for errorbar
+wf_sort_RT_std_max_ampl = cell(num_clusters, 1);
+wf_sort_RT_sem_max_ampl = cell(num_clusters, 1);
+for cluster_idx=1:num_clusters
+    wf_sort_RT_std_max_ampl{cluster_idx} = ap.groupfun(@nanstd, ...
+        wf_sort_RT_all_grouped_max_ampl{cluster_idx}, [], wf_animal_sort_RT_group_clusters_indices);
+    wf_sort_RT_sem_max_ampl{cluster_idx} = wf_sort_RT_std_max_ampl{cluster_idx}' ./ sqrt(num_animals_stim_wf);
+end
+
+%% plot max ampl
+
+curr_color = 'k';
+
+plot_day_values = wf_unique_avg_animal_sort_RT_group_indices(:,1); % Extract x values
+unique_plot_day_values = unique(plot_day_values);
+plot_trial_values = wf_unique_avg_animal_sort_RT_group_indices(:,2); % Extract y values
+
+spacing = 2; % Controls gap size between groups
+
+x_positions = cell(num_clusters, 1);
+y_positions= cell(num_clusters, 1);
+x_labels_wf_max = cell(num_clusters, 1);
+error_vals = cell(num_clusters, 1);
+valid_xticks = cell(num_clusters, 1);
+valid_xticklabels = cell(num_clusters, 1);
+for cluster_idx = 1:num_clusters
+    % Initialize variables for each cluster
+    x_positions{cluster_idx} = []; % Reset for each cluster
+    y_positions{cluster_idx} = [];
+    x_labels_wf_max{cluster_idx} = {};
+    error_vals{cluster_idx} = [];
+
+    pos_counter = 1; % Start position counter
+
+    for i = 1:length(unique_plot_day_values)
+        indices = find(plot_day_values == unique_plot_day_values(i));
+        num_points = length(indices);
+
+        % Append the current group of x_positions
+        x_positions{cluster_idx} = [x_positions{cluster_idx}, pos_counter:pos_counter+num_points-1];
+        y_positions{cluster_idx} = [y_positions{cluster_idx}, wf_sort_RT_mean_max_ampl{cluster_idx}(indices)];
+        x_labels_wf_max{cluster_idx} = [x_labels_wf_max{cluster_idx}; arrayfun(@(a, b) sprintf('(%d,%d)', a, b), ...
+            plot_day_values(indices), plot_trial_values(indices), 'UniformOutput', false)];
+        error_vals{cluster_idx} = [error_vals{cluster_idx}, wf_sort_RT_sem_max_ampl{cluster_idx}(indices)'];
+
+        % Insert NaN to break the line before the next group
+        if i < length(unique_plot_day_values)
+            x_positions{cluster_idx} = [x_positions{cluster_idx}, NaN];
+            y_positions{cluster_idx} = [y_positions{cluster_idx}, NaN];
+            error_vals{cluster_idx} = [error_vals{cluster_idx}, NaN];
+            x_labels_wf_max{cluster_idx} = [x_labels_wf_max{cluster_idx}; {''}]; % Add empty label for NaN
+        end
+
+        pos_counter = pos_counter + num_points + spacing; % Add spacing
+
+        valid_xticks{cluster_idx} = x_positions{cluster_idx}(~isnan(x_positions{cluster_idx}));
+        valid_xticklabels{cluster_idx} = x_labels_wf_max{cluster_idx}(~isnan(x_positions{cluster_idx}));
+    end
+end
+
+for cluster_idx = 1:num_clusters
+    % Plot for this cluster
+    figure;
+    tiledlayout('flow');
+
+    nexttile;
+    imagesc(manual_kernel_ROIs{cluster_idx})
+    axis image;
+    axis off;
+    clim(max(abs(clim)).*[-1,1]*0.7);
+    ap.wf_draw('ccf','k');
+    colormap(ap.colormap('PWG'));
+    title(['ROI for Cluster ', num2str(cluster_idx)]);
+
+    nexttile;
+    errorbar(x_positions{cluster_idx}, y_positions{cluster_idx}, error_vals{cluster_idx}, '-o', 'CapSize', 0, ...
+        'MarkerFaceColor', curr_color, 'MarkerEdgeColor', curr_color, 'Color', curr_color);
+    xticks(valid_xticks{cluster_idx}); % Only set valid x-ticks
+    xticklabels(valid_xticklabels{cluster_idx}); % Remove NaN labels
+    xtickangle(45); % Rotate for better visibility
+    title('WF ROI max amplitude mean')
+    sgtitle(['Cluster ' num2str(cluster_idx)]);
+end
+
+% %% sort RT vs wf response per day 
+% for cluster_idx=1:num_clusters
+%     figure;
+%     tiledlayout('flow');
+%     for day_idx=1:length(psth_unique_days_from_learning)
+%         this_day = wf_unique_days_from_learning(day_idx);
+%         this_day_idx = wf_unique_avg_animal_sort_RT_group_indices(:,1) == this_day;
+%         for_plot_mean_max_ampl = wf_sort_RT_mean_max_ampl{cluster_idx}(this_day_idx);
+%         for_plot_sem_max_ampl = wf_sort_RT_sem_max_ampl{cluster_idx}(this_day_idx);
+%         for_plot_mean_RT = avg_wf_RT_split_trial_RT_mean(this_day_idx);
+% 
+%         nexttile;
+% %         plot(for_plot_mean_RT, for_plot_mean_max_ampl);
+%          errorbar(for_plot_mean_RT, for_plot_mean_max_ampl, for_plot_sem_max_ampl, 'o', 'CapSize', 0, ...
+%         'MarkerFaceColor', curr_color, 'MarkerEdgeColor', curr_color, 'Color', curr_color);
+% %         ylim([-0.5 4]);
+% %         hold on;
+% %         xline(for_plot_mean_RT)
+%         yline(0)
+%         ylabel('Max ampl of str response')
+%         xlabel('Mean RT in group')
+%         title(['Day ' num2str(psth_unique_days_from_learning(day_idx))])
+%         colororder(gca, my_colormap);
+%     end
+%     sgtitle(['RT vs WF response for ROI ' num2str(cluster_idx)])
+% end
+%  
+
+%% bin RT split
+discretize_all_RT_bin = [-Inf,0:0.2:0.6,Inf];
+num_bin_split_trials = length(discretize_all_RT_bin)-1;
+log_discretize_all_RT_bin = [-Inf logspace(-1,1,5) Inf];
+for_wf_bin_RT_split_trial_ids_cell = cell(1, num_recordings);
+for rec_idx=1:num_recordings
+    % (to discretize by RT bin)
+    for_wf_bin_RT_split_trial_ids_cell{rec_idx} = discretize(all_RT{rec_idx},discretize_all_RT_bin);
+end
+for_wf_bin_RT_split_trial_ids = vertcat(for_wf_bin_RT_split_trial_ids_cell{:});
+
+%% make bin RT split trial indices
+wf_bin_RT_split_trial_group_indices = [for_wf_animal_ids(wf_use_days), ...
+    for_wf_days_from_learning(wf_use_days) , for_wf_bin_RT_split_trial_ids(wf_use_days)];
+[wf_unique_bin_RT_split_trial_indices, ~, wf_bin_RT_split_trial_indices] = unique(wf_bin_RT_split_trial_group_indices, 'rows');
+
+grouped_bin_RT_split_trial_norm_stim_Vs = ap.groupfun(@mean, ...
+    reshape_temp_all_norm_V_stim_align, [], [], wf_bin_RT_split_trial_indices);
+
+%% group by ld and split trial
+wf_bin_RT_day_trial_indices = [wf_unique_bin_RT_split_trial_indices(:, 2), wf_unique_bin_RT_split_trial_indices(:, 3)];
+[wf_unique_avg_animal_bin_RT_group_indices, ~, wf_animal_bin_RT_group_clusters_indices] = unique(wf_bin_RT_day_trial_indices, 'rows');
+
+avg_grouped_bin_RT_split_trial_norm_stim_Vs = ap.groupfun(@mean, ...
+    grouped_bin_RT_split_trial_norm_stim_Vs, [], [], wf_animal_bin_RT_group_clusters_indices);
+
+%% count animals
+num_animals_stim_wf = accumarray(wf_animal_bin_RT_group_clusters_indices, 1);
+
+%% get ROIs
+all_avg_manual_kernel_roi_bin_RT = cell(num_clusters, 1);
+for cluster_idx=1:num_clusters
+    this_ROI = manual_kernel_ROIs{cluster_idx};
+    all_avg_manual_kernel_roi_bin_RT{cluster_idx} = squeeze(ap.wf_roi(U_master,avg_grouped_bin_RT_split_trial_norm_stim_Vs, [], [], this_ROI));
+end
+
+%% plot RT bin split trial ROIs
+my_colormap = ap.colormap('KG', num_RT_split_trials);
+for cluster_idx=1:num_clusters
+    figure;
+    RT_ROIs = tiledlayout('flow');
+    for day_idx=1:length(wf_unique_days_from_learning)
+        this_day = wf_unique_days_from_learning(day_idx);
+        this_day_idx = wf_unique_avg_animal_bin_RT_group_indices(:,1) == this_day;
+        for_plot_manual_kernel_roi_bin_RT = all_avg_manual_kernel_roi_bin_RT{cluster_idx}(:, this_day_idx);
+
+        nexttile;
+        plot(wf_stim_time, for_plot_manual_kernel_roi_bin_RT);
+        title(['Day ' num2str(wf_unique_days_from_learning(day_idx))])
+        colororder(gca, my_colormap);
+    end
+    sgtitle(['RT bin split WF ROI for Cluster ' num2str(cluster_idx)])
+    linkaxes(RT_ROIs.Children)
+    xlim([-0.5 1])
+end
+
+%% max ampl
+all_grouped_manual_kernel_roi_bin_RT = cell(num_clusters, 1);
+for cluster_idx=1:num_clusters
+    this_ROI = manual_kernel_ROIs{cluster_idx};
+    all_grouped_manual_kernel_roi_bin_RT{cluster_idx} = squeeze(ap.wf_roi(U_master,grouped_bin_RT_split_trial_norm_stim_Vs, [], [], this_ROI));
+end
+
+wf_window_for_max = wf_stim_time>0 & wf_stim_time<0.3;
+wf_bin_RT_all_grouped_max_ampl = cell(num_clusters, 1);
+for cluster_idx=1:num_clusters
+    wf_bin_RT_all_grouped_max_ampl{cluster_idx} = max(all_grouped_manual_kernel_roi_bin_RT{cluster_idx}(wf_window_for_max, :), [], 1);
+end
+
+% group by ld and split trial
+wf_bin_RT_mean_max_ampl = cell(num_clusters, 1);
+for cluster_idx=1:num_clusters
+    wf_bin_RT_mean_max_ampl{cluster_idx} = ap.groupfun(@mean, ...
+        wf_bin_RT_all_grouped_max_ampl{cluster_idx}, [], wf_animal_bin_RT_group_clusters_indices);
+end
+
+% do sem for errorbar
+wf_bin_RT_std_max_ampl = cell(num_clusters, 1);
+wf_bin_RT_sem_max_ampl = cell(num_clusters, 1);
+for cluster_idx=1:num_clusters
+    wf_bin_RT_std_max_ampl{cluster_idx} = ap.groupfun(@nanstd, ...
+        wf_bin_RT_all_grouped_max_ampl{cluster_idx}, [], wf_animal_bin_RT_group_clusters_indices);
+    wf_bin_RT_sem_max_ampl{cluster_idx} = wf_bin_RT_std_max_ampl{cluster_idx}' ./ sqrt(num_animals_stim_wf);
+end
+
+%% plot max ampl
+
+curr_color = 'k';
+
+plot_day_values = wf_unique_avg_animal_bin_RT_group_indices(:,1); % Extract x values
+unique_plot_day_values = unique(plot_day_values);
+plot_trial_values = wf_unique_avg_animal_bin_RT_group_indices(:,2); % Extract y values
+
+spacing = 2; % Controls gap size between groups
+
+x_positions = cell(num_clusters, 1);
+y_positions= cell(num_clusters, 1);
+x_labels_wf_max = cell(num_clusters, 1);
+error_vals = cell(num_clusters, 1);
+valid_xticks = cell(num_clusters, 1);
+valid_xticklabels = cell(num_clusters, 1);
+for cluster_idx = 1:num_clusters
+    % Initialize variables for each cluster
+    x_positions{cluster_idx} = []; % Reset for each cluster
+    y_positions{cluster_idx} = [];
+    x_labels_wf_max{cluster_idx} = {};
+    error_vals{cluster_idx} = [];
+
+    pos_counter = 1; % Start position counter
+
+    for i = 1:length(unique_plot_day_values)
+        indices = find(plot_day_values == unique_plot_day_values(i));
+        num_points = length(indices);
+
+        % Append the current group of x_positions
+        x_positions{cluster_idx} = [x_positions{cluster_idx}, pos_counter:pos_counter+num_points-1];
+        y_positions{cluster_idx} = [y_positions{cluster_idx}, wf_bin_RT_mean_max_ampl{cluster_idx}(indices)];
+        x_labels_wf_max{cluster_idx} = [x_labels_wf_max{cluster_idx}; arrayfun(@(a, b) sprintf('(%d,%d)', a, b), ...
+            plot_day_values(indices), plot_trial_values(indices), 'UniformOutput', false)];
+        error_vals{cluster_idx} = [error_vals{cluster_idx}, wf_bin_RT_sem_max_ampl{cluster_idx}(indices)'];
+
+        % Insert NaN to break the line before the next group
+        if i < length(unique_plot_day_values)
+            x_positions{cluster_idx} = [x_positions{cluster_idx}, NaN];
+            y_positions{cluster_idx} = [y_positions{cluster_idx}, NaN];
+            error_vals{cluster_idx} = [error_vals{cluster_idx}, NaN];
+            x_labels_wf_max{cluster_idx} = [x_labels_wf_max{cluster_idx}; {''}]; % Add empty label for NaN
+        end
+
+        pos_counter = pos_counter + num_points + spacing; % Add spacing
+
+        valid_xticks{cluster_idx} = x_positions{cluster_idx}(~isnan(x_positions{cluster_idx}));
+        valid_xticklabels{cluster_idx} = x_labels_wf_max{cluster_idx}(~isnan(x_positions{cluster_idx}));
+    end
+end
+
+for cluster_idx = 1:num_clusters
+    % Plot for this cluster
+    figure;
+    tiledlayout('flow');
+
+    nexttile;
+    imagesc(manual_kernel_ROIs{cluster_idx})
+    axis image;
+    axis off;
+    clim(max(abs(clim)).*[-1,1]*0.7);
+    ap.wf_draw('ccf','k');
+    colormap(ap.colormap('PWG'));
+    title(['ROI for Cluster ', num2str(cluster_idx)]);
+
+    nexttile;
+    errorbar(x_positions{cluster_idx}, y_positions{cluster_idx}, error_vals{cluster_idx}, '-o', 'CapSize', 0, ...
+        'MarkerFaceColor', curr_color, 'MarkerEdgeColor', curr_color, 'Color', curr_color);
+    xticks(valid_xticks{cluster_idx}); % Only set valid x-ticks
+    xticklabels(valid_xticklabels{cluster_idx}); % Remove NaN labels
+    xtickangle(45); % Rotate for better visibility
+    title('WF ROI max amplitude mean')
+    sgtitle(['Cluster ' num2str(cluster_idx)]);
 end

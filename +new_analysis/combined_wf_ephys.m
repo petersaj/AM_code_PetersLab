@@ -121,11 +121,14 @@ all_norm_avg_stim_Vs = cellfun(@(V) V - permute(repmat(avg_stim_baseline, [1, 1,
 
 %% - group Vs
 % get grouping by learning day
-for_wf_days_from_learning = bhv.days_from_learning;
 [~, ~, for_wf_animal_ids] = unique(bhv.animal);
+for_wf_days_from_learning = bhv.days_from_learning;
+for_wf_combined_days_from_learning = for_wf_days_from_learning;
+for_wf_combined_days_from_learning(for_wf_combined_days_from_learning<-3) = -3;
+for_wf_combined_days_from_learning(for_wf_combined_days_from_learning>2) = 2;
 
-use_days = ~isnan(for_wf_days_from_learning);
-[wf_unique_avg_animal_group_indices, ~, wf_animal_group_clusters_indices] = unique(for_wf_days_from_learning(use_days));
+use_days = ~isnan(for_wf_combined_days_from_learning);
+[wf_unique_avg_animal_group_indices, ~, wf_animal_group_clusters_indices] = unique(for_wf_combined_days_from_learning(use_days));
 
 % avg across animals
 avg_grouped_norm_stim_Vs = cell(numel(unique_stims), 1);
@@ -141,89 +144,6 @@ num_animals_stim_wf = cell(numel(unique_stims), 1);
 for stim_idx = 1:numel(unique_stims)
     num_animals_stim_wf{stim_idx} = accumarray(wf_animal_group_clusters_indices, 1);
 end
-
-%% - get cluster ROIs
-% % ISSUE HERE - vals are not x10-4 anymore
-% 
-% all_norm_stim_kernel_roi = cell(num_clusters, 1);
-% for cluster_idx=1:num_clusters
-%     this_ROI = kernel_ROIs{cluster_idx};
-%     all_norm_stim_kernel_roi{cluster_idx} = cellfun(@(V) cell2mat(arrayfun(@(rec_idx) ...
-%         ap.wf_roi(U_master,V(:,:, rec_idx)',[],[],this_ROI), ...
-%         1:num_wf_recordings, 'UniformOutput', false)'), ...
-%         all_norm_avg_stim_Vs, 'UniformOutput', false);
-% end
-% 
-% avg_grouped_norm_stim_kernel_roi = cell(num_clusters, 1);
-% for cluster_idx=1:num_clusters
-%     for stim_idx = 1:numel(unique_stims)
-%         avg_grouped_norm_stim_kernel_roi{cluster_idx}{stim_idx} = ap.groupfun(@nanmean, ...
-%             all_norm_stim_kernel_roi{cluster_idx}{stim_idx}(use_days, :)', [], wf_animal_group_clusters_indices);
-%     end
-% end
-% 
-% % do sem for errorbar
-% std_grouped_norm_stim_kernel_roi = cell(num_clusters, 1);
-% sem_grouped_norm_stim_kernel_roi = cell(num_clusters, 1);
-% for cluster_idx=1:num_clusters
-%     for stim_idx = 1:numel(unique_stims)
-%         std_grouped_norm_stim_kernel_roi{cluster_idx}{stim_idx} = ap.groupfun(@nanstd, ...
-%             all_norm_stim_kernel_roi{cluster_idx}{stim_idx}(use_days, :)', [], wf_animal_group_clusters_indices);
-%         sem_grouped_norm_stim_kernel_roi{cluster_idx}{stim_idx} = ...
-%             std_grouped_norm_stim_kernel_roi{cluster_idx}{stim_idx} ./ sqrt(num_animals_stim_wf{stim_idx})';
-%     end
-% end
-% 
-% 
-% %% - PLOT ROIs for clusters
-% days_for_plot = -3:2;
-% all_colormap = ap.colormap('BKR', 2*max(abs(days_for_plot))+1);
-% colormap_days = -max(abs(days_for_plot)):max(abs(days_for_plot));
-% these_days_from_learning = wf_unique_avg_animal_group_indices;
-% plot_day_idx = ismember(these_days_from_learning, days_for_plot);
-% % get right colours
-% plotted_days = these_days_from_learning(plot_day_idx);
-% my_colormap = all_colormap(ismember(colormap_days, plotted_days), :);
-% 
-% for cluster_idx=1:num_clusters
-% 
-%     figure;
-%     tiledlayout('flow')
-% 
-%     nexttile;
-%     imagesc(kernel_ROIs{cluster_idx})
-%     axis image;
-%     axis off;
-%     clim(max(abs(clim)).*[-1,1]*0.7);
-%     ap.wf_draw('ccf','k');
-%     colormap(ap.colormap('PWG'));
-%     title('ROI used');
-% 
-%     for stim_idx=1:numel(unique_stims)
-% 
-% 
-% 
-%         for_plot_wf_roi = avg_grouped_norm_stim_kernel_roi{cluster_idx}{stim_idx}(:, plot_day_idx);
-% 
-%         % get num animals for legend
-%         num_animals_plotted = num_animals_stim_wf{stim_idx}(plot_day_idx);
-% 
-%         % make legend
-%         legend_for_plot = arrayfun(@(day, num) ['Day ' num2str(day) ' (n = ' num2str(num) ')'], ...
-%             plotted_days, num_animals_plotted, 'UniformOutput', false);
-% 
-%         nexttile;
-%         plot(wf_stim_time, for_plot_wf_roi);
-%         colororder(gca, my_colormap);
-%         legend(legend_for_plot);
-%         xline(0, 'LineWidth', 2);
-% 
-%         %     ylim([-0.5 2.5])
-% 
-%         title(['Cluster ROI for stim ' num2str(unique_stims(stim_idx))])
-%     end
-%     sgtitle(['Cluster ' num2str(cluster_idx)])
-% end
 
 %% - get manual cluster ROIs
 
@@ -255,7 +175,6 @@ for cluster_idx=1:num_clusters
             std_grouped_norm_stim_manual_kernel_roi{cluster_idx}{stim_idx} ./ sqrt(num_animals_stim_wf{stim_idx})';
     end
 end
-
 
 %% - PLOT ROI for manual cluster ROIs
 days_for_plot = -3:2;
@@ -300,7 +219,7 @@ for cluster_idx=1:num_clusters
 
         %     ylim([-0.5 2.5])
 
-        title(['Manual cluster ROI for stim ' num2str(unique_stims(stim_idx))])
+        title(['Manual cluster ROI ' num2str(cluster_idx) ' for stim ' num2str(unique_stims(stim_idx))])
     end
     sgtitle(['Manual cluster ' num2str(cluster_idx)])
 end
@@ -385,20 +304,25 @@ for cluster_idx=1:num_clusters
         errorbar(plotted_days, for_plot_mean_max_manual_kernel_roi(plot_day_idx), for_plot_sem_max_manual_kernel_roi(plot_day_idx), '-o', 'CapSize', 0, ...
             'MarkerFaceColor', wf_curr_color , 'MarkerEdgeColor', wf_curr_color , 'Color', wf_curr_color );
         title(['Stim ' num2str(unique_stims(stim_idx))])
-%         ylim([-2*10^(-3), 14*10^(-3)])
+%         ylim([3*10^(-3), 12*10^(-3)])
     end
     sgtitle(['Max amplitude for ROI ' num2str(cluster_idx)])
 end
 
 
 %% PSTHS
+num_psth_recordings = height(ephys);
+
 %% - make big vectors of days from learning and mouse id
 n_depths = arrayfun(@(rec_idx) ...
     size(all_ctx_maps_to_str.cortex_kernel_px{rec_idx}, 3) * ~isempty(all_ctx_maps_to_str.cortex_kernel_px{rec_idx}), ...
     1:height(all_ctx_maps_to_str));
 
-for_psth_days_from_learning = repelem(bhv.days_from_learning, n_depths);
 [~, ~, for_psth_animal_ids] = unique(repelem(bhv.animal, n_depths));
+for_psth_days_from_learning = repelem(bhv.days_from_learning, n_depths);
+for_psth_combined_days_from_learning = for_psth_days_from_learning;
+for_psth_combined_days_from_learning(for_psth_days_from_learning<-3) = -3;
+for_psth_combined_days_from_learning(for_psth_days_from_learning>2) = 2;
 
 %% - get 'fast' learning mice and 'slow' learning mice
 unique_animals = unique(bhv.animal);
@@ -416,7 +340,7 @@ num_trials = cell(numel(unique_stims), 1);
 for stim_idx = 1:numel(unique_stims)
     num_trials{stim_idx} = arrayfun(@(rec_idx) ...
         sum(ephys.trial_stim_values{rec_idx} == unique_stims(stim_idx)), ...
-        1:num_recordings);
+        1:num_psth_recordings);
 end
 for_psth_num_trials = cellfun(@(x) repelem(x, n_depths), num_trials, 'UniformOutput', false);
 
@@ -425,8 +349,8 @@ for_psth_num_trials = cellfun(@(x) repelem(x, n_depths), num_trials, 'UniformOut
 all_avg_stim_grouped_binned_spikes = cell(numel(unique_stims), 1);
 for stim_idx = 1:numel(unique_stims)
     stim_grouped_binned_spikes = arrayfun(@(rec_idx) ...
-        ephys.binned_spikes_stim_align{rec_idx}(ephys.trial_stim_values{rec_idx} == unique_stims(stim_idx), :, :), ...
-        1:num_recordings, 'UniformOutput', false);
+        ephys.binned_msn_spikes_stim_align{rec_idx}(ephys.trial_stim_values{rec_idx} == unique_stims(stim_idx), :, :), ...
+        1:num_psth_recordings, 'UniformOutput', false);
     avg_stim_grouped_binned_spikes = cellfun(@(rec_spikes) ...
         squeeze(mean(rec_spikes, 1)), ...
         stim_grouped_binned_spikes, 'UniformOutput', false);
@@ -435,14 +359,14 @@ end
 
 %% - group psths according to animal, cluster and day from learning
 % only use nonnan learning days
-use_days = ~isnan(for_psth_days_from_learning);
+use_days = ~isnan(for_psth_combined_days_from_learning);
 
 [unique_cluster_ids, ~, ~] = unique(cluster_ids(use_days));
-[unique_days_from_learning, ~, ~] = unique(for_psth_days_from_learning(use_days));
+[unique_days_from_learning, ~, ~] = unique(for_psth_combined_days_from_learning(use_days));
 [unique_animal_ids, ~, ~] = unique(for_psth_animal_ids(use_days));
 
 % Combine cluster_ids and days into a single matrix for indexing
-group_indices = [for_psth_animal_ids(use_days), cluster_ids(use_days), for_psth_days_from_learning(use_days)];
+group_indices = [for_psth_animal_ids(use_days), cluster_ids(use_days), for_psth_combined_days_from_learning(use_days)];
 [group_indices_unique_clusters, ~, group_clusters_indices] = unique(group_indices, 'rows');
 
 all_sum_avg_stim_grouped_spikes = cell(numel(unique_stims), 1);
@@ -451,11 +375,11 @@ for stim_idx = 1:numel(unique_stims)
         all_avg_stim_grouped_binned_spikes{stim_idx}(:, use_days), [], group_clusters_indices);
 end
 
-% group num trials
+% group num trials - when added combined days changed from unique to mean
 grouped_num_trials = cell(numel(unique_stims), 1);
 for stim_idx=1:numel(unique_stims)
     grouped_num_trials{stim_idx} = accumarray(group_clusters_indices, for_psth_num_trials{stim_idx}(use_days)', ...
-        [length(unique(group_clusters_indices)), 1], @unique);
+        [length(unique(group_clusters_indices)), 1], @mean);
 end
 
 %% - get baseline
@@ -486,31 +410,35 @@ end
 stim_idx = 3;
 cluster_idx = 1;
 % for cluster_idx =1:num_clusters
-%     for stim_idx=1:numel(unique_stims)
-        for animal_idx=1:length(unique_animals)
-            if min_mouse_ld(animal_idx) < -3
-                figure;
-                per_mouse_psth_fig = tiledlayout('flow');
-                for day_idx=1:length(unique_days_from_learning)
-                    this_day = unique_days_from_learning(day_idx);
-                    this_mouse_idx = group_indices_unique_clusters(:,1) == animal_idx & ...
-                        group_indices_unique_clusters(:,2) == cluster_idx & ...
-                        group_indices_unique_clusters(:,3) == this_day;
-                    if isempty(find(this_mouse_idx))
-                        continue
-                    end
-                    this_smooth_stim_psth = all_smooth_stim_psths{stim_idx}(:,  this_mouse_idx);
-                    nexttile;
-                    plot(psth_stim_time, this_smooth_stim_psth)
-                    title(['Day ' num2str(this_day)])
-                end
-                sgtitle(sprintf('Cluster %d Animal %d\npre LD %d', ...
-                cluster_idx, animal_idx, min_mouse_ld(animal_idx)));
+for animal_idx=1:length(unique_animals)
+    figure;
+    per_mouse_psth_fig = tiledlayout('flow');
+    for day_idx=1:length(unique_days_from_learning)
+        this_day = unique_days_from_learning(day_idx);
+        this_mouse_idx = group_indices_unique_clusters(:,1) == animal_idx & ...
+            group_indices_unique_clusters(:,2) == cluster_idx & ...
+            group_indices_unique_clusters(:,3) == this_day;
+        nexttile;
 
-                linkaxes(per_mouse_psth_fig.Children)
+        for stim_idx=1:numel(unique_stims)
+
+            %         if min_mouse_ld(animal_idx) < -3
+
+            if isempty(find(this_mouse_idx))
+                continue
             end
+            this_smooth_stim_psth = all_smooth_stim_psths{stim_idx}(:,  this_mouse_idx);
+            plot(psth_stim_time, this_smooth_stim_psth)
+            hold on;
+            %             end
         end
-%     end
+        legend(arrayfun(@(x) sprintf('Stim %d', x), unique_stims, 'UniformOutput', false))
+        title(['Day ' num2str(this_day)])
+    end
+    linkaxes(per_mouse_psth_fig.Children)
+    sgtitle(sprintf('Cluster %d Animal %d\npre LD %d', ...
+        cluster_idx, animal_idx, min_mouse_ld(animal_idx)));
+end
 % end
 
 
@@ -547,7 +475,7 @@ days_for_plot = -3:2;
 all_colormap = ap.colormap('BKR', 2*max(abs(days_for_plot))+1);
 colormap_days = -max(abs(days_for_plot)):max(abs(days_for_plot));
 
-for cluster_idx =1:length(unique_cluster_ids)
+for cluster_idx =1:num_clusters
 
     figure
     tiledlayout('flow')
@@ -581,7 +509,7 @@ for cluster_idx =1:length(unique_cluster_ids)
         legend(legend_for_plot);
         xline(0, 'LineWidth', 2);
         ylim([-0.5 2.5])
-        title(['Stim ' num2str(unique_stims(stim_idx))])
+        title(['MSNs Stim ' num2str(unique_stims(stim_idx))])
 
         %
         %     x_fill = [x, fliplr(x)];  % X values: time points and reversed time points
@@ -670,38 +598,38 @@ for stim_idx=1:length(unique_stims)
         title(['Cluster ' num2str(cluster_idx)])
 
     end
-    sgtitle(['Max psth amplitude for stim ' num2str(unique_stims(stim_idx))])
+    sgtitle(['MSNs Max psth amplitude for stim ' num2str(unique_stims(stim_idx))])
 end
 % ADD line per mouse in grey
 
 
 %% per mouse max ampl
-stim_idx = 3;
-cluster_idx = 1;
-% for cluster_idx =1:num_clusters
-%     for stim_idx=1:numel(unique_stims)
-        for animal_idx=1:length(unique_animals)
-            if min_mouse_ld(animal_idx) > -3
-                figure;
-                tiledlayout('flow');
-                this_mouse_idx = group_indices_unique_clusters(:,1) == animal_idx & ...
-                        group_indices_unique_clusters(:,2) == cluster_idx;
-                these_days_from_learning = group_indices_unique_clusters(this_mouse_idx,3);
-                if isempty(find(this_mouse_idx))
-                    continue
-                end
-                this_max_ampl = max_smooth_stim_psths{stim_idx}(this_mouse_idx);
-                nexttile;
-                plot(these_days_from_learning, this_max_ampl, '-o')
-                hold on;
-                xline(0)
-                sgtitle(['Cluster ' num2str(cluster_idx) ...
-                    ' Animal ' num2str(animal_idx)])
-                title(['pre LD ' num2str(min_mouse_ld(animal_idx))])
-            end
-        end
-%     end
-% end
+% stim_idx = 3;
+% cluster_idx = 1;
+% % for cluster_idx =1:num_clusters
+% %     for stim_idx=1:numel(unique_stims)
+%         for animal_idx=1:length(unique_animals)
+%             if min_mouse_ld(animal_idx) > -3
+%                 figure;
+%                 tiledlayout('flow');
+%                 this_mouse_idx = group_indices_unique_clusters(:,1) == animal_idx & ...
+%                         group_indices_unique_clusters(:,2) == cluster_idx;
+%                 these_days_from_learning = group_indices_unique_clusters(this_mouse_idx,3);
+%                 if isempty(find(this_mouse_idx))
+%                     continue
+%                 end
+%                 this_max_ampl = max_smooth_stim_psths{stim_idx}(this_mouse_idx);
+%                 nexttile;
+%                 plot(these_days_from_learning, this_max_ampl, '-o')
+%                 hold on;
+%                 xline(0)
+%                 sgtitle(['Cluster ' num2str(cluster_idx) ...
+%                     ' Animal ' num2str(animal_idx)])
+%                 title(['pre LD ' num2str(min_mouse_ld(animal_idx))])
+%             end
+%         end
+% %     end
+% % end
 
 %% combined plot
 

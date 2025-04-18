@@ -164,10 +164,10 @@ psth_group_indices_unique_clusters = [for_psth_animal_ids, ...
     for_psth_combined_days_from_learning];
 
 %% - package in cluster and day
-pakaged_norm_smooth_stim_psths = cell(num_clusters, length(psth_unique_combined_days_from_learning));
+packaged_norm_smooth_stim_psths = cell(num_clusters, length(psth_unique_combined_days_from_learning));
 for cluster_idx=1:num_clusters
     for day_idx=1:length(psth_unique_combined_days_from_learning)
-        pakaged_norm_smooth_stim_psths{cluster_idx, day_idx} = ...
+        packaged_norm_smooth_stim_psths{cluster_idx, day_idx} = ...
             cat_smooth_norm_stim_psths(...
             psth_group_indices_unique_clusters(:, 3) == cluster_idx & ...
             psth_group_indices_unique_clusters(:, 4) == psth_unique_combined_days_from_learning(day_idx), :);
@@ -193,7 +193,8 @@ for cluster_idx=1:num_clusters
 end
 
 %% heatmap plot by RT
-
+movmean_window_size = 5;
+cmap_gamma = 0.8;
 plot_time = [-0.5 1];
 plot_time_idx = psth_stim_time > plot_time(1) & psth_stim_time < plot_time(2);
 for cluster_idx=1:num_clusters
@@ -201,10 +202,12 @@ for cluster_idx=1:num_clusters
     tiledlayout('flow')
     for day_idx=1:length(psth_unique_combined_days_from_learning)
         nexttile;
-        imagesc(psth_stim_time(plot_time_idx), [], ...
-            pakaged_norm_smooth_stim_psths{cluster_idx, day_idx}...
-            (RT_sort_idx{cluster_idx, day_idx}, plot_time_idx));
-        max_abs = max(abs(pakaged_norm_smooth_stim_psths{cluster_idx, day_idx}...
+        
+        data = packaged_norm_smooth_stim_psths{cluster_idx, day_idx}(RT_sort_idx{cluster_idx, day_idx}, plot_time_idx);
+        data_smooth_y = movmean(data, movmean_window_size, 1);  % Smooth along y-axis
+        imagesc(psth_stim_time(plot_time_idx), [], data_smooth_y);
+
+        max_abs = max(abs(packaged_norm_smooth_stim_psths{cluster_idx, day_idx}...
             (RT_sort_idx{cluster_idx, day_idx}, plot_time_idx)), [], 'all');
         hold on;
         plot(RT_cluster_day{cluster_idx, day_idx}(RT_sort_idx{cluster_idx, day_idx}),...
@@ -212,9 +215,9 @@ for cluster_idx=1:num_clusters
         if isempty(max_abs)
             continue
         end
-%         clim([-max_abs max_abs])
-                clim([-2,2]);
-        colormap(ap.colormap('BWR'))
+        clim([-max_abs max_abs])
+%                 clim([-2,2]);
+        colormap(ap.colormap('BWR', [], cmap_gamma))
         title(['Day ' num2str(psth_unique_combined_days_from_learning(day_idx))])
     end
     sgtitle(['NEW Cluster ' num2str(cluster_idx)])
@@ -269,9 +272,6 @@ end
 
 %% get max ampl
 psth_window_for_max = psth_stim_time>0 & psth_stim_time<0.3;
-psth_all_trial_split_max_ampl = max(cat_smooth_norm_stim_psths(:, psth_window_for_max), [], 2);
-
-%%%% AP DEMO
 
 [psth_trial_split_recmean_ampl,psth_trial_split_recmean_ampl_group] = ...
     ap.nestgroupfun({@mean, @mean},cat_smooth_norm_stim_psths, ...
@@ -284,22 +284,9 @@ psth_trial_split_mean_max_ampl = ap.nestgroupfun({@mean, @mean},psth_trial_split
     psth_trial_split_recmean_ampl_group(:,1), ...
     psth_trial_split_recmean_ampl_group(:,2:end));
 
-psth_trial_split_sem_max_ampl = ap.nestgroupfun({@mean, @AP_sem},psth_trial_split_recmean_ampl_max, ...
+psth_trial_split_std_max_ampl = ap.nestgroupfun({@mean, @nanstd},psth_trial_split_recmean_ampl_max, ...
     psth_trial_split_recmean_ampl_group(:,1), ...
     psth_trial_split_recmean_ampl_group(:,2:end));
-
-
-%%%%
-
-% group by ld and split trial
-psth_trial_split_mean_max_ampl = ap.nestgroupfun({@mean, @mean},psth_all_trial_split_max_ampl, ...
-    for_psth_animal_ids, ...
-    [for_psth_split_trial_ids, for_psth_combined_days_from_learning, for_psth_cluster_ids]);
-
-% do sem for errorbar
-psth_trial_split_std_max_ampl = ap.nestgroupfun({@mean, @nanstd},psth_all_trial_split_max_ampl, ...
-    for_psth_animal_ids, ...
-    [for_psth_split_trial_ids, for_psth_combined_days_from_learning, for_psth_cluster_ids]);
 psth_trial_split_sem_max_ampl = psth_trial_split_std_max_ampl ./ sqrt(num_animals_stim_psth);
 
 %% plot max ampl
@@ -432,22 +419,24 @@ for cluster_idx=1:num_clusters
     sgtitle(['RT sort split Cluster ' num2str(cluster_idx)])
 end
 
-%% get max ampl
-psth_window_for_max = psth_stim_time>0 & psth_stim_time<0.3;
-psth_all_trial_split_max_ampl = max(cat_smooth_norm_stim_psths(:, psth_window_for_max), [], 2);
-
 %% get max ampl for RT sort split
 
-% group by ld and split trial
-psth_sort_RT_trial_split_mean_max_ampl = ap.nestgroupfun({@mean, @mean},psth_all_trial_split_max_ampl, ...
-    for_psth_animal_ids, ...
-    [for_psth_sort_RT_split_trial_ids, for_psth_combined_days_from_learning, for_psth_cluster_ids]);
+[psth_sort_RT_trial_split_recmean_ampl,psth_sort_RT_trial_split_recmean_ampl_group] = ...
+    ap.nestgroupfun({@mean, @mean},cat_smooth_norm_stim_psths, ...
+    (1:size(cat_smooth_norm_stim_psths,1))', ...
+    [for_psth_animal_ids,for_psth_sort_RT_split_trial_ids, for_psth_combined_days_from_learning, for_psth_cluster_ids]);
 
-% do sem for errorbar
-psth_sort_RT_trial_split_std_max_ampl = ap.nestgroupfun({@mean, @nanstd},psth_all_trial_split_max_ampl, ...
-    for_psth_animal_ids, ...
-    [for_psth_sort_RT_split_trial_ids, for_psth_combined_days_from_learning, for_psth_cluster_ids]);
+psth_sort_RT_trial_split_recmean_ampl_max = max(psth_sort_RT_trial_split_recmean_ampl(:, psth_window_for_max), [], 2);
+
+psth_sort_RT_trial_split_mean_max_ampl = ap.nestgroupfun({@mean, @mean},psth_sort_RT_trial_split_recmean_ampl_max, ...
+    psth_sort_RT_trial_split_recmean_ampl_group(:,1), ...
+    psth_sort_RT_trial_split_recmean_ampl_group(:,2:end));
+
+psth_sort_RT_trial_split_std_max_ampl = ap.nestgroupfun({@mean, @nanstd},psth_sort_RT_trial_split_recmean_ampl_max, ...
+    psth_sort_RT_trial_split_recmean_ampl_group(:,1), ...
+    psth_sort_RT_trial_split_recmean_ampl_group(:,2:end));
 psth_sort_RT_trial_split_sem_max_ampl = psth_sort_RT_trial_split_std_max_ampl ./ sqrt(num_animals_stim_psth_sort_RT_split);
+
 
 %% plot max ampl
 
@@ -579,40 +568,21 @@ for cluster_idx=1:num_clusters
 end
 
 %% get max ampl for RT bin split
-psth_window_for_max = psth_stim_time>0 & psth_stim_time<0.3;
-% psth_all_trial_split_max_ampl = max(cat_smooth_norm_stim_psths(:, psth_window_for_max), [], 2);
-
-
-%%%% AP DEMO
-
-[psth_trial_split_recmean_ampl,psth_trial_split_recmean_ampl_group] = ...
+[psth_bin_RT_trial_split_recmean_ampl,psth_bin_RT_trial_split_recmean_ampl_group] = ...
     ap.nestgroupfun({@mean, @mean},cat_smooth_norm_stim_psths, ...
     (1:size(cat_smooth_norm_stim_psths,1))', ...
     [for_psth_animal_ids,for_psth_bin_RT_split_trial_ids, for_psth_combined_days_from_learning, for_psth_cluster_ids]);
 
-psth_trial_split_recmean_ampl_max = max(psth_trial_split_recmean_ampl(:, psth_window_for_max), [], 2);
+psth_bin_RT_trial_split_recmean_ampl_max = max(psth_bin_RT_trial_split_recmean_ampl(:, psth_window_for_max), [], 2);
 
-psth_bin_RT_trial_split_mean_max_ampl = ap.nestgroupfun({@mean, @mean},psth_trial_split_recmean_ampl_max, ...
-    psth_trial_split_recmean_ampl_group(:,1), ...
-    psth_trial_split_recmean_ampl_group(:,2:end));
+psth_bin_RT_trial_split_mean_max_ampl = ap.nestgroupfun({@mean, @mean},psth_bin_RT_trial_split_recmean_ampl_max, ...
+    psth_bin_RT_trial_split_recmean_ampl_group(:,1), ...
+    psth_bin_RT_trial_split_recmean_ampl_group(:,2:end));
 
-psth_bin_RT_trial_split_sem_max_ampl = ap.nestgroupfun({@mean, @AP_sem},psth_trial_split_recmean_ampl_max, ...
-    psth_trial_split_recmean_ampl_group(:,1), ...
-    psth_trial_split_recmean_ampl_group(:,2:end));
-
-
-%%%%
-
-% % group by ld and split trial
-% psth_bin_RT_trial_split_mean_max_ampl = ap.nestgroupfun({@mean, @mean},psth_all_trial_split_max_ampl, ...
-%     for_psth_animal_ids, ...
-%     [for_psth_bin_RT_split_trial_ids, for_psth_combined_days_from_learning, for_psth_cluster_ids]);
-% 
-% % do sem for errorbar
-% psth_bin_RT_trial_split_std_max_ampl = ap.nestgroupfun({@mean, @nanstd},psth_all_trial_split_max_ampl, ...
-%     for_psth_animal_ids, ...
-%     [for_psth_bin_RT_split_trial_ids, for_psth_combined_days_from_learning, for_psth_cluster_ids]);
-% psth_bin_RT_trial_split_sem_max_ampl = psth_bin_RT_trial_split_std_max_ampl ./ sqrt(num_animals_stim_psth_bin_RT_split);
+psth_bin_RT_trial_split_std_max_ampl = ap.nestgroupfun({@mean, @nanstd},psth_bin_RT_trial_split_recmean_ampl_max, ...
+    psth_bin_RT_trial_split_recmean_ampl_group(:,1), ...
+    psth_bin_RT_trial_split_recmean_ampl_group(:,2:end));
+psth_bin_RT_trial_split_sem_max_ampl = psth_bin_RT_trial_split_std_max_ampl ./ sqrt(num_animals_stim_psth_bin_RT_split);
 
 %% plot max ampl
 
@@ -1117,6 +1087,10 @@ wf_num_trials = arrayfun(@(rec_idx) ...
 
 % get days from learning and animal id
 for_wf_days_from_learning = repelem(bhv.days_from_learning, wf_num_trials);
+for_wf_combined_days_from_learning = for_wf_days_from_learning;
+for_wf_combined_days_from_learning(for_wf_combined_days_from_learning<-3) = -3;
+for_wf_combined_days_from_learning(for_wf_combined_days_from_learning>2) = 2;
+
 [~, ~, for_wf_animal_ids] = unique(repelem(bhv.animal, wf_num_trials));
 
 % get trial ids per day
@@ -1125,10 +1099,10 @@ for_wf_trial_ids_cell = arrayfun(@(rec_idx) 1:wf_num_trials(rec_idx), ...
 for_wf_trial_ids = horzcat(for_wf_trial_ids_cell{:})';
 
 % use days
-wf_use_days = ~isnan(for_wf_days_from_learning);
-wf_unique_days_from_learning = unique(for_wf_days_from_learning(wf_use_days));
+wf_use_days = ~isnan(for_wf_combined_days_from_learning);
+wf_unique_days_from_learning = unique(for_wf_combined_days_from_learning(wf_use_days));
 
-% wf_group_indices = [for_wf_days_from_learning(wf_use_days), for_wf_animal_ids(wf_use_days), for_wf_trial_ids(wf_use_days)];
+% wf_group_indices = [for_wf_combined_days_from_learning(wf_use_days), for_wf_animal_ids(wf_use_days), for_wf_trial_ids(wf_use_days)];
 % [wf_unique_day_group_indices, ~, wf_day_group_clusters_indices] = unique(wf_group_indices, 'rows');
 
 % Vs
@@ -1147,7 +1121,7 @@ end
 grouped_stim_manual_kernel_roi = cell(length(wf_unique_days_from_learning), num_clusters);
 for day_idx=1:length(wf_unique_days_from_learning)
     this_day = wf_unique_days_from_learning(day_idx);
-    this_day_idx = for_wf_days_from_learning(wf_use_days) == this_day;
+    this_day_idx = for_wf_combined_days_from_learning(wf_use_days) == this_day;
     for cluster_idx=1:num_clusters
         grouped_stim_manual_kernel_roi{day_idx, cluster_idx} = all_norm_stim_manual_kernel_roi{cluster_idx}(:, this_day_idx);
     end
@@ -1162,7 +1136,7 @@ sorted_for_wf_RT_cluster_day = cell(length(wf_unique_days_from_learning), 1);
 for_wf_RT_sort_idx = cell(length(wf_unique_days_from_learning), 1);
 for day_idx=1:length(wf_unique_days_from_learning)
     this_day = wf_unique_days_from_learning(day_idx);
-    for_wf_RT_cluster_day = for_wf_RT(for_wf_days_from_learning(wf_use_days) == this_day);
+    for_wf_RT_cluster_day = for_wf_RT(for_wf_combined_days_from_learning(wf_use_days) == this_day);
     [sorted_for_wf_RT_cluster_day{day_idx}, for_wf_RT_sort_idx{day_idx}] = sort(for_wf_RT_cluster_day);
 end
 
@@ -1180,23 +1154,28 @@ end
 % title('Original')
 
 %% plot
-for cluster_idx=1:num_clusters
+movmean_window_size = 5;  
+for cluster_idx = 1:num_clusters
     figure;
     tiledlayout('flow');
-    for day_idx=1:length(wf_unique_days_from_learning)
+    for day_idx = 1:length(wf_unique_days_from_learning)
         for_plot_manual_kernel_roi = grouped_stim_manual_kernel_roi{day_idx, cluster_idx}(:, for_wf_RT_sort_idx{day_idx});
+        data = for_plot_manual_kernel_roi';
+        data_smooth_y = movmean(data, movmean_window_size, 1);
+        
         nexttile;
-        imagesc(wf_stim_time,[], for_plot_manual_kernel_roi');
-        clim_val = max(clim);
+        imagesc(wf_stim_time, [], data_smooth_y);
+
+        clim_val = max(clim);  
         clim([-clim_val, clim_val]);
         colormap(ap.colormap('PWG'))
+
         hold on;
         plot(sorted_for_wf_RT_cluster_day{day_idx}, 1:size(for_plot_manual_kernel_roi, 2))
         title(['Day ' num2str(wf_unique_days_from_learning(day_idx))])
     end
     sgtitle(['Cluster ' num2str(cluster_idx)])
 end
-
 
 %% - split into 3
 
@@ -1209,7 +1188,7 @@ for_wf_split_trial_ids_cell_trimmed = arrayfun(@(rec_idx) for_wf_split_trial_ids
 for_wf_split_trial_ids = horzcat(for_wf_split_trial_ids_cell_trimmed{:})';
 
 %% group Vs by split trial and mouse and day
-wf_animal_day_trial_indices = [for_wf_animal_ids(wf_use_days), for_wf_days_from_learning(wf_use_days), for_wf_split_trial_ids(wf_use_days)];
+wf_animal_day_trial_indices = [for_wf_animal_ids(wf_use_days), for_wf_combined_days_from_learning(wf_use_days), for_wf_split_trial_ids(wf_use_days)];
 [wf_unique_all_group_indices, ~, wf_all_group_indices] = unique(wf_animal_day_trial_indices, 'rows');
 
 grouped_norm_stim_Vs = ap.groupfun(@mean, ...
@@ -1372,7 +1351,7 @@ wf_per_rec_sorted_RT = vertcat(all_RT{:});
 
 %% make sort RT split trial indices
 wf_sort_RT_split_trial_group_indices = [for_wf_animal_ids(wf_use_days), ...
-    for_wf_days_from_learning(wf_use_days) , for_wf_sort_RT_split_trial_ids(wf_use_days)];
+    for_wf_combined_days_from_learning(wf_use_days) , for_wf_sort_RT_split_trial_ids(wf_use_days)];
 [wf_unique_sort_RT_split_trial_indices, ~, wf_sort_RT_split_trial_indices] = unique(wf_sort_RT_split_trial_group_indices, 'rows');
 
 wf_RT_split_trial_RT_mean = ap.groupfun(@mean, ...
@@ -1557,6 +1536,7 @@ end
 %  
 
 %% bin RT split
+all_RT = vertcat(bhv.stim_to_move);
 discretize_all_RT_bin = [-Inf,0:0.2:0.6,Inf];
 num_bin_split_trials = length(discretize_all_RT_bin)-1;
 log_discretize_all_RT_bin = [-Inf logspace(-1,1,5) Inf];
@@ -1569,7 +1549,7 @@ for_wf_bin_RT_split_trial_ids = vertcat(for_wf_bin_RT_split_trial_ids_cell{:});
 
 %% make bin RT split trial indices
 wf_bin_RT_split_trial_group_indices = [for_wf_animal_ids(wf_use_days), ...
-    for_wf_days_from_learning(wf_use_days) , for_wf_bin_RT_split_trial_ids(wf_use_days)];
+    for_wf_combined_days_from_learning(wf_use_days) , for_wf_bin_RT_split_trial_ids(wf_use_days)];
 [wf_unique_bin_RT_split_trial_indices, ~, wf_bin_RT_split_trial_indices] = unique(wf_bin_RT_split_trial_group_indices, 'rows');
 
 grouped_bin_RT_split_trial_norm_stim_Vs = ap.groupfun(@mean, ...
@@ -1593,7 +1573,7 @@ for cluster_idx=1:num_clusters
 end
 
 %% plot RT bin split trial ROIs
-my_colormap = ap.colormap('KG', num_RT_split_trials);
+my_colormap = ap.colormap('KG', num_bin_split_trials);
 for cluster_idx=1:num_clusters
     figure;
     RT_ROIs = tiledlayout('flow');

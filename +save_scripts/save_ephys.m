@@ -253,7 +253,7 @@ for animal_idx=1:length(animals)
         ephys_animal.mean_post_stim(use_rec) = {mean_post_stim};
         ephys_animal.std_post_stim(use_rec) = {std_post_stim};
 
-        ephys_animal.unit_smooth_event_psths(use_rec) = {smooth_event_psths}; 
+        ephys_animal.unit_event_psths(use_rec) = {event_psths}; 
 
         ephys_animal.single_unit_idx(use_rec) = {single_unit_idx}; 
 

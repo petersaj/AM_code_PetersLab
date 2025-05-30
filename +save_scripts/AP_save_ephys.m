@@ -1,22 +1,16 @@
 %% Load experiments and save in struct
 
 %% load bhv, save path and dataset
-
-%%%% AM: CHANGE THIS
-
 save_path = 'C:\Users\petersa\Documents\PetersLab\analysis\longitudinal_striatum\data\AM_packaged\nostim';
-animals = {'AP024','AP026'};
 
-% save_path = 'C:\Users\petersa\Documents\PetersLab\analysis\longitudinal_striatum\data\AM_packaged\stim';
-% animals = { ...
-%     'AM011','AM012','AM014','AM015','AM016','AM017', ...
-%     'AM018','AM019','AM021','AM022','AM026','AM029', ...
-%     'AP023','AP025'};
+load(fullfile(save_path, 'swr_bhv.mat'));
+
+animals = {'AP024','AP026'};
 
 
 %% - go through each animal
 for animal_idx=1:length(animals)
-    task_ephys_animal = table;
+    ephys_animal = table;
 
     animal = animals{animal_idx};
     workflow_passive = {'lcr_passive'};
@@ -26,59 +20,23 @@ for animal_idx=1:length(animals)
     training_days = ismember({recordings_passive.day}, {recordings_task.day});
     train_rec_passive = recordings_passive(training_days);
     bhv_days = {train_rec_passive.day};
+    ephys_days =  bhv_days([train_rec_passive.ephys]);
 
-%     % take out after
-%     days_from_learning = bhv.days_from_learning(strcmp(bhv.animal, animal));
-%     figure;
-%     tiledlayout('flow');
-%     sgtitle([animal ' resp cells'])
-%     % take out after
+    % take out after
+    days_from_learning = bhv.days_from_learning(strcmp(bhv.animal, animal));
+    figure;
+    tiledlayout(3,length(ephys_days), 'TileIndexing','columnmajor');
+    sgtitle([animal ' resp cells'])
+    % take out after
 
-    for use_rec=1:length(recordings_task)
+    for use_rec=1:length(ephys_days)
 
-        rec_day = recordings_task(use_rec).day;
-        rec_time = recordings_task(use_rec).recording{end};
+        rec_day = train_rec_passive(use_rec).day;
+        rec_time = train_rec_passive(use_rec).recording{end};
         verbose = true;
         load_parts.behavior = true;
         load_parts.ephys = true;
         ap.load_recording
-
-        %% Get ITI fast movement times
-
-        wheel_starts = timelite.timestamps(diff([0;wheel_move]) == 1);
-        wheel_stops = timelite.timestamps(diff([0;wheel_move]) == -1);
-
-        wheel_move_maxvel = arrayfun(@(x) ...
-            max(abs(wheel_velocity(timelite.timestamps >= wheel_starts(x) & ...
-            timelite.timestamps <= wheel_stops(x)))),1:length(wheel_starts));
-        wheel_move_tduration = wheel_stops - wheel_starts;
-
-        iti_move_idx = interp1(photodiode_times, ...
-            photodiode_values,wheel_starts,'previous') == 0;
-
-        % (hardcoding threshold for now)
-        wheel_thresh = -round((1024/360)/3*90);
-
-        % (get time to cross threshold, if any)
-        wheel_thresh_t = nan(length(wheel_starts),1);
-        for curr_move = 1:length(wheel_starts)
-            curr_position_abs = ...
-                wheel_position(timelite.timestamps >= wheel_starts(curr_move) & ...
-                timelite.timestamps <= wheel_stops(curr_move));
-            curr_position_rel = curr_position_abs-curr_position_abs(1);
-            curr_thresh_cross_t = find(curr_position_rel < ...
-                wheel_thresh,1)./timelite.daq_info(1).rate;
-            if ~isempty(curr_thresh_cross_t)
-                wheel_thresh_t(curr_move) = curr_thresh_cross_t;
-            end
-        end
-
-        iti_fastmove_idx = iti_move_idx & wheel_thresh_t <= 0.3;
-        iti_fastmove_times = wheel_starts(iti_fastmove_idx);
-
-        iti_fastmove_maxvel = wheel_move_maxvel(iti_fastmove_idx);
-        iti_fastmove_tduration = wheel_move_tduration(iti_fastmove_idx);
-
 
         %% Get striatum boundaries - Just skip missing depth ones
 
@@ -90,21 +48,15 @@ for animal_idx=1:length(animals)
         catch ME
             warning(['Undefined str depth ' animal ' ' rec_day])
             %             depth_group = nan;
-            task_ephys_animal.animal(use_rec) = {animal};
-            task_ephys_animal.rec_day(use_rec) = {rec_day};
+            ephys_animal.animal(use_rec) = {animal};
+            ephys_animal.rec_day(use_rec) = {rec_day};
             continue
         end
 
         unit_depth_group = discretize(template_depths, depth_group_edges);
 
-        %% single unit labels and trial values
-        single_unit_idx = strcmp(template_qc_labels, 'singleunit');
-
-        trial_stim_values = ones(length(n_trials), 1);
-
-        if isfield(trial_events.values,'TrialOpacity')
-            trial_opacity = [trial_events.values(1:n_trials).TrialOpacity]';
-        end
+        %% single unit labels
+        single_unit_idx = strcmp(template_qc_labels, 'singleunit'); 
 
         %% cell type labels
         AP_longstriatum_classify_striatal_units
@@ -112,18 +64,37 @@ for animal_idx=1:length(animals)
         str_fsi_idx = striatum_celltypes.fsi;
         str_msn_idx = striatum_celltypes.msn;
 
+        %% trial stim values
+
+        trial_stim_values = vertcat(trial_events.values.TrialStimX);
+        trial_stim_values = trial_stim_values(1:length(stimOn_times));
+
+
+        %% find no move trials
+
+        % create matrix of times for stim onset
+        timestep = 0.01;
+        start_time = -0.5;
+        end_time = 1;
+        timevec = start_time:timestep:end_time;
+        stim_frame = (-start_time)*(1/timestep)+1;
+        time_stimulus = stimOn_times+timevec;
+        % stim aligned wheel move
+        t = timelite.timestamps;
+        stim_wheel_move = interp1(t,+wheel_move,time_stimulus);
+        no_move_trials = sum(stim_wheel_move(:,stim_frame:end),2)==0;
+
+ 
         %% psth
         [~,binned_spikes_stim_align] = ap.psth(spike_times_timelite, ...
-            stimOn_times(1:n_trials),  ...
+            stimOn_times (no_move_trials),  ...
             depth_group);
 
-        [~,binned_spikes_move_align] = ap.psth(spike_times_timelite, ...
-            stim_move_time(1:n_trials),  ...
-            depth_group);
-
-        [~,binned_spikes_itimove_align] = ap.psth(spike_times_timelite, ...
-            iti_fastmove_times,  ...
-            depth_group);
+        %% MSN psth
+        msn_spikes = ismember(spike_templates, find(str_msn_idx));
+        [~,binned_msn_spikes_stim_align] = ap.psth(spike_times_timelite(msn_spikes), ...
+            stimOn_times(no_move_trials),  ...
+            depth_group(msn_spikes));
 
         %% EDIT: unit responsivenes
         %% -- contra stim
@@ -131,25 +102,29 @@ for animal_idx=1:length(animals)
         % create pre and post stim onsets
         bin_window_for_pre = 0.2;
         bin_window_for_post = 0.2;
-        pre_stim_time = stimOn_times(1:n_trials) - [bin_window_for_pre 0];
-        post_stim_time = stimOn_times(1:n_trials) + [0 bin_window_for_post];
+        pre_stim_time = stimOn_times - [bin_window_for_pre 0];
+        post_stim_time = stimOn_times + [0 bin_window_for_post];
+
+        %         % contra stim
+        %         contra_stim = 90;
+        %
+        %         % get trials for this stim and no move
+        %         contra_good_trials = (trial_stim_values == contra_stim) & no_move_trials;
+
+
+        %%%%%% PSTH version
 
         % group stim times into cell arrays before use arrayfun
         % example:
-        use_align = arrayfun(@(x) stimOn_times(1:n_trials), ...
+        use_align = arrayfun(@(x) stimOn_times(trial_stim_values == x & no_move_trials), ...
             unique(trial_stim_values),'uni',false);
-        
+
         [event_psths,~] = ap.psth(spike_times_timelite,use_align,spike_templates);
 
         window_center = [-0.1,0.1];
         bin_size = 0.2;
         [~,event_spikes] = ap.psth(spike_times_timelite,use_align,spike_templates, ...
             'window',window_center,'bin_size',bin_size);
-
-        % added so same code from passive works
-        event_spikes = {event_spikes};
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
         real_event_avg_spikes = arrayfun(@(x) squeeze(mean(diff(event_spikes{x}, [], 2), 1)), ...
             1:length(unique(trial_stim_values)),'uni',false);
 
@@ -211,10 +186,10 @@ for animal_idx=1:length(animals)
         % Apply normalization and smoothing to all units and stim IDs
         smooth_event_psths = arrayfun(@(stim) ...
             cell2mat(arrayfun(@(unit) ...
-            normalize_and_smooth(squeeze(event_psths(unit, :, 1))), ...
-            (1:length(unique(spike_templates)))', ...
+            normalize_and_smooth(squeeze(event_psths(unit, :, stim))), ...
+            (1:size(event_psths, 1))', ...
             'UniformOutput', false)), ...
-            1:length(unique(trial_stim_values)), ...
+            1:size(event_psths, 3), ...
             'UniformOutput', false);
 
         time_for_plot = -0.2:0.001:0.5;
@@ -244,52 +219,54 @@ for animal_idx=1:length(animals)
             clim([-max_abs, max_abs]);
             %         clim([min(smooth_event_psths(resp_units{1}, :, 1), [], 'all'), ...
             %             max(smooth_event_psths(resp_units{1}, :, 1), [], 'all')]);
-%             title([rec_day ' LD ' num2str(days_from_learning(use_rec))])
+            title([rec_day ' LD ' num2str(days_from_learning(use_rec))])
             drawnow;
         end
 
+
+
+        %%%%%%%%%%%%%%%%
+
         %% save data in mouse table
-        task_ephys_animal.animal(use_rec) = {animal};
-        task_ephys_animal.rec_day(use_rec) = {rec_day};
+        ephys_animal.animal(use_rec) = {animal};
+        ephys_animal.rec_day(use_rec) = {rec_day};
 
-        task_ephys_animal.depth_group_edges(use_rec) = {depth_group_edges};
-        task_ephys_animal.unit_depth_group(use_rec) = {unit_depth_group};
+        ephys_animal.trial_stim_values(use_rec) = {trial_stim_values(no_move_trials)};
+        ephys_animal.depth_group_edges(use_rec) = {depth_group_edges};
+        ephys_animal.unit_depth_group(use_rec) = {unit_depth_group};
 
-        task_ephys_animal.binned_spikes_stim_align(use_rec) = {binned_spikes_stim_align};
-        task_ephys_animal.binned_spikes_move_align(use_rec) = {binned_spikes_move_align};
-        task_ephys_animal.binned_spikes_itimove_align(use_rec) = {binned_spikes_itimove_align};
 
-        task_ephys_animal.bin_window_for_pre(use_rec) = {bin_window_for_pre};
-        task_ephys_animal.bin_window_for_post(use_rec) = {bin_window_for_post};
-        task_ephys_animal.unit_resp_p_value(use_rec) = {unit_resp_p_value};
+%         ephys_animal.bin_edges(use_rec) = {bin_edges};
+%         ephys_animal.bin_centres(use_rec) = {bin_centres};
 
-        task_ephys_animal.mean_pre_stim(use_rec) = {mean_pre_stim};
-        task_ephys_animal.mean_post_stim(use_rec) = {mean_post_stim};
-        task_ephys_animal.std_post_stim(use_rec) = {std_post_stim};
+        ephys_animal.binned_spikes_stim_align(use_rec) = {binned_spikes_stim_align};
 
-        task_ephys_animal.unit_smooth_event_psths(use_rec) = {smooth_event_psths}; 
+        ephys_animal.binned_msn_spikes_stim_align(use_rec) = {binned_msn_spikes_stim_align};
 
-        task_ephys_animal.single_unit_idx(use_rec) = {single_unit_idx}; 
+        ephys_animal.bin_window_for_pre(use_rec) = {bin_window_for_pre};
+        ephys_animal.bin_window_for_post(use_rec) = {bin_window_for_post};
+        ephys_animal.unit_resp_p_value(use_rec) = {unit_resp_p_value};
 
-        task_ephys_animal.str_tan_idx(use_rec) = {str_tan_idx}; 
-        task_ephys_animal.str_fsi_idx(use_rec) = {str_fsi_idx}; 
-        task_ephys_animal.str_msn_idx(use_rec) = {str_msn_idx}; 
+        ephys_animal.mean_pre_stim(use_rec) = {mean_pre_stim};
+        ephys_animal.mean_post_stim(use_rec) = {mean_post_stim};
+        ephys_animal.std_post_stim(use_rec) = {std_post_stim};
 
-        if isfield(trial_events.values,'TrialOpacity')
-            task_ephys_animal.trial_opacity(use_rec) = {trial_opacity};
-        end
+        ephys_animal.unit_event_psths(use_rec) = {event_psths}; 
 
-        task_ephys_animal.iti_fastmove_maxvel(use_rec) = {iti_fastmove_maxvel};
-        task_ephys_animal.iti_fastmove_tduration(use_rec) = {iti_fastmove_tduration};
+        ephys_animal.single_unit_idx(use_rec) = {single_unit_idx}; 
+
+        ephys_animal.str_tan_idx(use_rec) = {str_tan_idx}; 
+        ephys_animal.str_fsi_idx(use_rec) = {str_fsi_idx}; 
+        ephys_animal.str_msn_idx(use_rec) = {str_msn_idx}; 
 
         disp(['Done day ' num2str(use_rec)])
 
     end
-    all_task_ephys_save_cell{animal_idx} = task_ephys_animal;
+    all_ephys_save_cell{animal_idx} = ephys_animal;
     disp(['Done ' animal]);
 end
 
-task_ephys = vertcat(all_task_ephys_save_cell{:});
-save_name = fullfile(save_path, 'task_ephys');
-save(save_name, "task_ephys", "-v7.3");
+ephys = vertcat(all_ephys_save_cell{:});
+save_name = fullfile(save_path, 'ephys');
+save(save_name, "ephys", "-v7.3");
 

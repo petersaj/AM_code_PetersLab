@@ -1,11 +1,8 @@
 %% save path and animals in dataset
 
-save_path = '\\qnap-ap001.dpag.ox.ac.uk\APlab\Users\Andrada-Maria_Marica\long_str_ctx_data';
+save_path = 'C:\Users\petersa\Documents\PetersLab\analysis\longitudinal_striatum\data\AM_packaged\nostim';
 
-animals = { ...
-    'AM011','AM012','AM014','AM015','AM016','AM017', ...
-    'AM018','AM019','AM021','AM022','AM026','AM029', ...
-    'AP023','AP025'};
+animals = {'AP024','AP026'};
 
 for animal_idx=1:length(animals)
     animal = animals{animal_idx};
